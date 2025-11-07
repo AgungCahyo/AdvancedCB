@@ -40,7 +40,135 @@ export class MessageHandler {
       await new Promise(resolve => setTimeout(resolve, delay));
 
       log("INFO", `💬 Mengirim balasan untuk kata kunci: ${keyword}`);
-      await this.wa.sendMessage(from, reply);
+      
+      // Strategy: Kirim button sesuai funnel stage untuk max conversion
+      
+      if (keyword === "welcome") {
+        // Welcome: Quick action buttons
+        await this.wa.sendInteractiveButtons(
+          from,
+          reply,
+          [
+            { id: "mulai", title: "🚀 Download Ebook" },
+            { id: "tips", title: "💡 Strategi BEP" },
+            { id: "konsultasi", title: "📞 Chat Konsultan" }
+          ],
+          "Pilih untuk mulai perjalanan Anda 👇"
+        );
+      } 
+      else if (keyword === "help") {
+        // Help: Show all menu with list
+        await this.wa.sendInteractiveList(
+          from,
+          reply,
+          "📋 Lihat Menu Lengkap",
+          [
+            {
+              title: "🎯 Aksi Cepat",
+              rows: [
+                { 
+                  id: "mulai", 
+                  title: "🚀 Download Ebook", 
+                  description: "Panduan lengkap + voucher diskon" 
+                },
+                { 
+                  id: "konsultasi", 
+                  title: "📞 Chat Konsultan", 
+                  description: "Simulasi ROI & rekomendasi paket" 
+                }
+              ]
+            },
+            {
+              title: "📚 Pembelajaran",
+              rows: [
+                { 
+                  id: "tips", 
+                  title: "💡 Strategi BEP <30 Hari", 
+                  description: "5 strategi terbukti & real result" 
+                },
+                { 
+                  id: "bonus", 
+                  title: "🎁 Bonus Template", 
+                  description: "Tools senilai 1.2 juta gratis" 
+                }
+              ]
+            },
+            {
+              title: "🚀 Upgrade Level",
+              rows: [
+                { 
+                  id: "autopilot", 
+                  title: "⚡ Sistem Autopilot", 
+                  description: "Passive income 24/7 hands-free" 
+                }
+              ]
+            }
+          ],
+          "Jalan Pintas Juragan Photobox"
+        );
+      }
+      else if (keyword === "mulai") {
+        // Setelah download: Guide ke next step
+        await this.wa.sendMessage(from, reply);
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        await this.wa.sendInteractiveButtons(
+          from,
+          "Sudah download? Lanjut ke mana? 👇",
+          [
+            { id: "tips", title: "💡 Tips BEP" },
+            { id: "bonus", title: "🎁 Bonus Tools" },
+            { id: "autopilot", title: "🚀 Sistem Auto" }
+          ],
+          "Rekomendasi: TIPS → BONUS → AUTOPILOT"
+        );
+      }
+      else if (keyword === "tips") {
+        // Setelah tips: Push ke bonus atau autopilot
+        await this.wa.sendMessage(from, reply);
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        await this.wa.sendInteractiveButtons(
+          from,
+          "Mau action sekarang? 🔥",
+          [
+            { id: "bonus", title: "🎁 Ambil Bonus" },
+            { id: "autopilot", title: "🚀 Sistem Auto" },
+            { id: "konsultasi", title: "📞 Konsultasi" }
+          ],
+          "87% yang follow flow ini closing!"
+        );
+      }
+      else if (keyword === "bonus") {
+        // Setelah bonus: Strong push ke autopilot/konsultasi
+        await this.wa.sendMessage(from, reply);
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        await this.wa.sendInteractiveButtons(
+          from,
+          "Next level: Passive income autopilot! 💰",
+          [
+            { id: "autopilot", title: "⚡ Info Autopilot" },
+            { id: "konsultasi", title: "📞 Chat Sekarang" }
+          ],
+          "Voucher terbatas 12 slot tersisa!"
+        );
+      }
+      else if (keyword === "autopilot") {
+        // Setelah autopilot: Direct CTA konsultasi
+        await this.wa.sendMessage(from, reply);
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        await this.wa.sendInteractiveButtons(
+          from,
+          "Siap untuk ROI 4-6 bulan? 🎯",
+          [
+            { id: "konsultasi", title: "📞 Ya, Chat Konsultan" }
+          ],
+          "Kode: EBOOKKLIK2025 | 12 slot tersisa"
+        );
+      }
+      else {
+        // Default: Kirim text aja untuk keyword lain
+        await this.wa.sendMessage(from, reply);
+      }
+      
       await this.wa.markAsRead(messageId);
 
       log("INFO", `✅ Alur pesan selesai untuk ${from}`);
@@ -58,7 +186,21 @@ export class MessageHandler {
     const messageId = message.id;
     const from = message.from;
     const type = message.type;
-    const textBody = message.text?.body || "";
+    
+    // Handle button/interactive response
+    let textBody = "";
+    if (type === "text") {
+      textBody = message.text?.body || "";
+    } else if (type === "interactive") {
+      const interactive = message.interactive;
+      if (interactive.type === "button_reply") {
+        textBody = interactive.button_reply.id; // ID button yang diklik
+        log("INFO", `🔘 Button clicked: ${textBody}`);
+      } else if (interactive.type === "list_reply") {
+        textBody = interactive.list_reply.id; // ID list yang dipilih
+        log("INFO", `📋 List selected: ${textBody}`);
+      }
+    }
 
     // Check cache
     if (this.cache.has(messageId)) {
@@ -82,7 +224,7 @@ export class MessageHandler {
     }
 
     // Check message type
-    if (type !== "text") {
+    if (type !== "text" && type !== "interactive") {
       log("WARN", `❌ Tipe pesan tidak didukung: ${type}`);
       await this.wa.sendMessage(from, messagesData.errors.unsupported_type);
       return;
