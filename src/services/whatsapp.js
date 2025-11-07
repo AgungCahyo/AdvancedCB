@@ -82,6 +82,107 @@ export class WhatsAppService {
     }
   }
 
+  async sendInteractiveButtons(to, bodyText, buttons, footerText = null) {
+    try {
+      const payload = {
+        messaging_product: "whatsapp",
+        recipient_type: "individual",
+        to: to,
+        type: "interactive",
+        interactive: {
+          type: "button",
+          body: { text: bodyText },
+          action: {
+            buttons: buttons.map((btn, index) => ({
+              type: "reply",
+              reply: {
+                id: btn.id || `btn_${index}`,
+                title: btn.title.substring(0, 20) // Max 20 karakter
+              }
+            }))
+          }
+        }
+      };
+
+      // Tambahkan footer jika ada
+      if (footerText) {
+        payload.interactive.footer = { text: footerText };
+      }
+
+      const response = await axios.post(
+        this.apiUrl,
+        payload,
+        {
+          headers: { 
+            "Authorization": `Bearer ${this.token}`,
+            "Content-Type": "application/json"
+          },
+          timeout: 10000,
+        }
+      );
+      
+      log("INFO", `✅ Interactive button terkirim ke ${to}`);
+      return response.data;
+    } catch (err) {
+      const errorMsg = err.response?.data?.error?.message || err.message;
+      log("ERROR", `❌ Gagal mengirim button ke ${to}:`, errorMsg);
+      
+      if (err.response?.data) {
+        log("ERROR", "Detail error API:", JSON.stringify(err.response.data, null, 2));
+      }
+      
+      throw err;
+    }
+  }
+
+  async sendInteractiveList(to, bodyText, buttonText, sections, footerText = null) {
+    try {
+      const payload = {
+        messaging_product: "whatsapp",
+        recipient_type: "individual",
+        to: to,
+        type: "interactive",
+        interactive: {
+          type: "list",
+          body: { text: bodyText },
+          action: {
+            button: buttonText,
+            sections: sections
+          }
+        }
+      };
+
+      // Tambahkan footer jika ada
+      if (footerText) {
+        payload.interactive.footer = { text: footerText };
+      }
+
+      const response = await axios.post(
+        this.apiUrl,
+        payload,
+        {
+          headers: { 
+            "Authorization": `Bearer ${this.token}`,
+            "Content-Type": "application/json"
+          },
+          timeout: 10000,
+        }
+      );
+      
+      log("INFO", `✅ Interactive list terkirim ke ${to}`);
+      return response.data;
+    } catch (err) {
+      const errorMsg = err.response?.data?.error?.message || err.message;
+      log("ERROR", `❌ Gagal mengirim list ke ${to}:`, errorMsg);
+      
+      if (err.response?.data) {
+        log("ERROR", "Detail error API:", JSON.stringify(err.response.data, null, 2));
+      }
+      
+      throw err;
+    }
+  }
+
   async markAsRead(messageId) {
     try {
       await axios.post(
