@@ -1,0 +1,48 @@
+{
+  "ebook_link": "https://lynk.id/your-ebook-link",
+  "bonus_link": "https://drive.google.com/your-bonus-link",
+  "konsultan_wa": "https://wa.me/628123456789",
+
+  "funnel": {
+    "welcome": {
+      "message": "Halo Juragan! 👋\n\nSelamat datang di *Jalan Pintas Juragan Photobox* - panduan lengkap membangun bisnis photobox menguntungkan! 📸\n\n*Yang Anda dapatkan GRATIS:*\n✅ Ebook lengkap 7 bab (senilai 297rb)\n✅ Modal mulai <5 juta\n✅ Margin profit 80-90%\n✅ Strategi BEP 30 hari\n✅ Bonus template & tools\n\n💬 Ketik *MULAI* untuk download sekarang!\n\nAtau ketik *HELP* untuk lihat semua menu.",
+      "reaction": "👋"
+    },
+    
+    "mulai": {
+      "message": "Mantap pilihan Anda, Juragan! 🎉\n\n📥 *Download ebook di sini:*\n{{ebook_link}}\n\n📚 *Isi ebook (7 bab):*\n1. Merakit booth dari nol\n2. Kalkulasi HPP & pricing strategy\n3. Pemilihan lokasi strategis\n4. Setup operasional harian\n5. Marketing viral TikTok/IG\n6. Troubleshooting teknis\n7. Scaling ke multiple locations\n\n🎁 *VOUCHER EKSKLUSIF:*\nPakai kode *EBOOKKLIK2025* untuk diskon jutaan rupiah saat upgrade ke franchise Klak Klik Kluk!\n\n💡 *Next step:*\n• Ketik *TIPS* → Strategi BEP <30 hari\n• Ketik *BONUS* → Download tools gratis\n• Ketik *AUTOPILOT* → Info sistem otomatis",
+      "reaction": "🔥"
+    },
+    
+    "tips": {
+      "message": "Siap ningkatin profit, Juragan? 💰\n\n*5 STRATEGI TERBUKTI BEP <30 HARI:*\n\n1️⃣ *Lokasi High-Traffic*\nTarget: Kampus, mall, kafe hits, laundry koin\n→ Minimal 500+ orang/hari\n\n2️⃣ *Frame Instagramable*\nTema: Pastel aesthetic, vintage, K-pop\n→ Conversion rate naik 3x lipat\n\n3️⃣ *Viral TikTok Marketing*\nHashtag: #PhotoboxChallenge\n→ Organic reach 10K+ views gratis\n\n4️⃣ *Launch Promo Killer*\n\"Beli 1 gratis 1\" minggu pertama\n→ Build customer database cepat\n\n5️⃣ *Digital Upselling*\nJual soft copy via email Rp15K\n→ Pure profit 100%\n\n📊 *Real Result:*\nJuragan kami di Surabaya BEP hari ke-21 dengan strategi ini!\n\n🎁 Ketik *BONUS* untuk download:\n• 50+ template frame Canva\n• Kalkulator HPP/BEP otomatis\n• Checklist lokasi strategis\n\n🚀 Ketik *AUTOPILOT* untuk sistem hands-free 24/7",
+      "reaction": "💡"
+    },
+    
+    "bonus": {
+      "message": "Selamat! Bonus eksklusif Anda siap diambil 🎁\n\n*PAKET LENGKAP SENILAI 1,2 JUTA:*\n\n📐 *Template Library*\n• 50+ frame Canva premium\n• Tema: Aesthetic, Retro, Wedding, K-pop\n• Format siap cetak HD\n\n📊 *Business Tools*\n• HPP Calculator with pricing simulation\n• BEP Calculator + grafik 12 bulan\n• Cash flow projection template\n• ROI analyzer\n\n📍 *Location Finder*\n• 20+ tipe lokasi high-converting\n• Scoring system evaluasi lokasi\n• Template survey area\n\n🎨 *Marketing Assets*\n• Caption copywriting Instagram/TikTok\n• Hashtag research tools\n• Content calendar template\n\n👉 *Download semua:*\n{{bonus_link}}\n\n⚡ *LEVEL UP:*\nBanyak juragan upgrade ke *Klak Klik Kluk Autopilot* setelah coba manual.\n\nKenapa? Sistem otomatis = passive income!\n\nKetik *AUTOPILOT* untuk tahu bedanya 🚀",
+      "reaction": "🎁"
+    },
+    
+    "autopilot": {
+      "message": "Cerdas! Ini perbedaan *game-changer* nya 💪\n\n*⚙️ KLAK KLIK KLUK AUTOPILOT:*\nBooth berjalan 24/7 tanpa dijaga!\n\n*FITUR UNGGULAN:*\n\n💳 *Smart Payment*\n• QRIS, e-wallet, kartu kredit\n• Auto reconciliation\n• Zero human error\n\n📊 *Real-Time Dashboard*\n• Monitor sales live dari HP\n• Stock alert otomatis\n• Profit tracking per jam\n\n📱 *Viral Engine*\n• Auto-share ke TikTok/IG Story\n• Built-in hashtag trending\n• User-generated content boost\n\n🛠️ *Remote Support*\n• 24/7 technical assistance\n• Preventive maintenance alert\n• Over-the-air updates\n\n🏢 *Multi-Location*\n• Kelola 10+ booth 1 dashboard\n• Centralized inventory\n• Performance comparison\n\n*💰 ROI NYATA:*\n• Modal balik: 4-6 bulan\n• Monthly passive income: 3-8 juta/booth\n• Break-even rate: 95% owner\n\n*🔖 PROMO EKSKLUSIF:*\nKode: *EBOOKKLIK2025*\n✅ Diskon setup 20%\n✅ Training gratis certified\n✅ POS subscription 3 bulan FREE\n✅ Priority support 6 bulan\n\n📞 Ketik *KONSULTASI* untuk:\n• Simulasi ROI personal\n• Rekomendasi lokasi area Anda\n• Penawaran paket custom",
+      "reaction": "🚀"
+    },
+    
+    "konsultasi": {
+      "message": "Perfect timing! 🎯\n\nSaya hubungkan Anda dengan *Business Consultant* kami sekarang.\n\n*📋 PERSIAPAN KONSULTASI (30-45 menit):*\n\n✅ Analisis lokasi & demografi\n✅ Simulasi modal & proyeksi profit\n✅ Rekomendasi paket sesuai budget\n✅ Virtual tour booth reference\n✅ Q&A teknis & operasional\n✅ Roadmap 90 hari pertama\n\n*💬 Klik untuk chat konsultan:*\n{{konsultan_wa}}\n\n*🏷️ INFO PENTING - Sebutkan ke konsultan:*\n1️⃣ Kode voucher: *EBOOKKLIK2025*\n2️⃣ Kota/area target Anda\n3️⃣ Budget investasi\n4️⃣ Target passive income/bulan\n\n*⏰ URGENT:*\nVoucher terbatas hanya 50 slot/bulan!\nSaat ini tersisa 12 slot.\n\n🚀 *Next 6-12 bulan:*\nDari nol → Photobox empire yang print money 24/7!\n\nLet's make it happen, Juragan! 💰",
+      "reaction": "📞"
+    },
+    
+    "help": {
+      "message": "*📋 MENU CHATBOT*\n*Jalan Pintas Juragan Photobox*\n\n*Ketik keyword ini:*\n\n🚀 *MULAI*\n→ Download ebook + voucher diskon\n\n💡 *TIPS*\n→ 5 strategi BEP <30 hari (proven!)\n\n🎁 *BONUS*\n→ Template Canva + tools bisnis (1.2jt)\n\n⚡ *AUTOPILOT*\n→ Info sistem franchise hands-free\n\n📞 *KONSULTASI*\n→ Chat langsung dengan konsultan\n\n❓ *HELP*\n→ Tampilkan menu ini\n\n━━━━━━━━━━━━━━━\n\n*🎯 Recommended Flow:*\nMULAI → TIPS → BONUS → AUTOPILOT → KONSULTASI\n\n*📊 Success Rate:*\n87% yang follow flow ini closing dalam 14 hari!\n\nAda pertanyaan? Ketik aja pertanyaan Anda atau pilih menu di atas 👆",
+      "reaction": "❓"
+    }
+  },
+
+  "errors": {
+    "unsupported_type": "⚠️ Maaf, bot hanya bisa proses *pesan teks* ya.\n\nSilakan:\n• Ketik *HELP* → Lihat semua menu\n• Ketik *MULAI* → Download ebook gratis\n\nTerima kasih! 🙏",
+    
+    "general_error": "🔧 Ups, ada gangguan teknis sebentar.\n\nSolusi:\n1️⃣ Tunggu 10 detik, lalu kirim ulang\n2️⃣ Ketik *HELP* untuk menu utama\n3️⃣ Atau langsung chat admin:\n   {{konsultan_wa}}\n\nMaaf atas ketidaknyamanannya! 🙏"
+  }
+}
