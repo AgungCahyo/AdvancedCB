@@ -1,5 +1,5 @@
 import axios from "axios";
-import { CONFIG, messagesData } from "../config/index.js";
+import { CONFIG, getMessages } from "../config/index.js";
 import { log } from "../utils/logger.js";
 
 export class WhatsAppService {
@@ -9,13 +9,15 @@ export class WhatsAppService {
   }
 
   replacePlaceholders(message) {
+    const messages = getMessages(); // Load dari Firebase/Local
     return message
-      .replace(/{{ebook_link}}/g, messagesData.ebook_link)
-      .replace(/{{bonus_link}}/g, messagesData.bonus_link)
-      .replace(/{{konsultan_wa}}/g, messagesData.konsultan_wa);
+      .replace(/{{ebook_link}}/g, messages.ebook_link)
+      .replace(/{{bonus_link}}/g, messages.bonus_link)
+      .replace(/{{konsultan_wa}}/g, messages.konsultan_wa);
   }
 
   getReply(text) {
+    const messages = getMessages(); // Load dari Firebase/Local
     const normalizedText = text.toLowerCase().trim();
     
     const keywordMap = [
@@ -29,7 +31,7 @@ export class WhatsAppService {
     
     for (const { keywords, key } of keywordMap) {
       if (keywords.some(keyword => normalizedText.includes(keyword))) {
-        const response = messagesData.funnel[key];
+        const response = messages.funnel[key];
         if (response) {
           return {
             message: this.replacePlaceholders(response.message),
@@ -40,7 +42,7 @@ export class WhatsAppService {
       }
     }
     
-    const welcome = messagesData.funnel.welcome;
+    const welcome = messages.funnel.welcome;
     return {
       message: this.replacePlaceholders(welcome.message),
       reaction: welcome.reaction,

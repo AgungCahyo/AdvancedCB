@@ -1,4 +1,4 @@
-import { messagesData, CONFIG } from "../config/index.js";
+import { getMessages, CONFIG } from "../config/index.js";
 import { log } from "../utils/logger.js";
 
 export class MessageHandler {
@@ -26,7 +26,8 @@ export class MessageHandler {
       log("INFO", `✅ Permintaan konsultasi diproses untuk ${from}`);
     } catch (err) {
       log("ERROR", "❌ Error saat memproses konsultasi:", err.message);
-      await this.wa.sendMessage(from, messagesData.errors.general_error);
+      const messages = getMessages();
+      await this.wa.sendMessage(from, messages.errors.general_error);
       throw err;
     }
   }
@@ -61,7 +62,7 @@ export class MessageHandler {
         await this.wa.sendInteractiveList(
           from,
           reply,
-          "📋 Lihat Menu Lengkap",
+          "Menu",
           [
             {
               title: "🎯 Aksi Cepat",
@@ -175,7 +176,8 @@ export class MessageHandler {
     } catch (err) {
       log("ERROR", "❌ Error dalam alur pesan:", err.message);
       try {
-        await this.wa.sendMessage(from, messagesData.errors.general_error);
+        const messages = getMessages();
+        await this.wa.sendMessage(from, messages.errors.general_error);
       } catch (recoveryErr) {
         log("ERROR", "❌ Gagal mengirim pesan error ke pengguna:", recoveryErr.message);
       }
@@ -226,7 +228,8 @@ export class MessageHandler {
     // Check message type
     if (type !== "text" && type !== "interactive") {
       log("WARN", `❌ Tipe pesan tidak didukung: ${type}`);
-      await this.wa.sendMessage(from, messagesData.errors.unsupported_type);
+      const messages = getMessages();
+      await this.wa.sendMessage(from, messages.errors.unsupported_type);
       return;
     }
 
