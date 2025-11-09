@@ -224,6 +224,16 @@ export class MessageHandler {
   message.pushName ||                     // fallback ke nama WhatsApp user
   "Unknown";
 
+
+  const now = new Date();
+  const hour = now.getHours();
+  const isWorkingHour = hour >= 8 && hour < 17; // 08:00 - 17:00
+  if (!isWorkingHour) {
+    const offlineMsg = "⚠️ Saat ini di luar jam kerja (08:00–17:00). Pesan Anda akan dibalas besok.";
+    await this.wa.sendMessage(from, offlineMsg);
+    log("INFO", `🕒 Pesan dari ${from} dikirim di luar jam kerja, dibalas otomatis`);
+    return;
+  }
     // Handle button/interactive response
     let textBody = "";
     let isButtonClick = false;
