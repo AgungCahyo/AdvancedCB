@@ -1,11 +1,25 @@
 import { getMessages, CONFIG } from "../config/index.js";
 import { log } from "../utils/logger.js";
+import { 
+  logMessage, 
+  logConsultation, 
+  trackUser, 
+  trackKeyword,
+  trackButtonClick,
+  trackConversion,
+  isLoggingEnabled
+} from "../services/firebaseLogger.js";
 
 export class MessageHandler {
   constructor(whatsappService, cache, rateLimiter) {
     this.wa = whatsappService;
     this.cache = cache;
     this.rateLimiter = rateLimiter;
+    this.loggingEnabled = isLoggingEnabled();
+    
+    if (this.loggingEnabled) {
+      log("INFO", "📊 Firebase analytics logging enabled");
+    }
   }
 
   async handleConsultation(from, textBody, messageId, reply, reaction) {
