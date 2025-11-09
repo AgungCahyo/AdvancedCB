@@ -219,6 +219,7 @@ export class MessageHandler {
     const messageId = message.id;
     const from = message.from;
     const type = message.type;
+    const name = message.contacts?.[0]?.profile?.name || null;
     
     // Handle button/interactive response
     let textBody = "";
@@ -257,7 +258,7 @@ export class MessageHandler {
     // 🔥 TRACK USER ACTIVITY
     if (this.loggingEnabled) {
       try {
-        await trackUser(from);
+        await trackUser(from, name);
         log("INFO", `👤 User tracked: ${from}`);
       } catch (logErr) {
         log("WARN", `⚠️ Failed to track user: ${logErr.message}`);

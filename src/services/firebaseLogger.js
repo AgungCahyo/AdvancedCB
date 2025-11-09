@@ -123,7 +123,7 @@ export async function logConsultation(consultationData) {
  * Track user activity
  * @param {string} userId - User phone number
  */
-export async function trackUser(userId) {
+export async function trackUser(userId, profileName = null) {
   if (!isInitialized) return null;
 
   try {
@@ -134,6 +134,7 @@ export async function trackUser(userId) {
       // New user
       await setDoc(userRef, {
         userId,
+        name: profileName || 'Unknown', // ⬅️ Tambahan field baru
         firstSeen: serverTimestamp(),
         lastSeen: serverTimestamp(),
         messageCount: 1,
@@ -143,15 +144,14 @@ export async function trackUser(userId) {
         status: 'active'
       });
 
-      console.log(`👤 New user tracked: ${userId}`);
-      
-      // Update total users count
+      console.log(`👤 New user tracked: ${userId} (${profileName || 'Unknown'})`);
       await updateStats('users');
     } else {
-      // Existing user - update last seen
+      // Existing user
       await updateDoc(userRef, {
         lastSeen: serverTimestamp(),
-        messageCount: increment(1)
+        messageCount: increment(1),
+        ...(profileName && { name: profileName }) // ⬅️ Update name kalau ada perubahan
       });
     }
 
@@ -161,6 +161,7 @@ export async function trackUser(userId) {
     return null;
   }
 }
+
 
 /**
  * Update keyword statistics
