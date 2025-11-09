@@ -19,6 +19,8 @@ export class MessageHandler {
     
     if (this.loggingEnabled) {
       log("INFO", "📊 Firebase analytics logging enabled");
+    } else {
+      log("INFO", "📁 Firebase analytics logging disabled (config not found)");
     }
   }
 
@@ -36,6 +38,21 @@ export class MessageHandler {
       
       await this.wa.sendMessage(CONFIG.adminNumber, adminNotification);
       await this.wa.sendReaction(from, messageId, reaction);
+      
+      // 🔥 LOG CONSULTATION TO FIREBASE
+      if (this.loggingEnabled) {
+        try {
+          await logConsultation({
+            from,
+            message: textBody,
+            status: 'pending',
+            notified: true
+          });
+          log("INFO", `📞 Consultation logged to Firebase for ${from}`);
+        } catch (logErr) {
+          log("WARN", `⚠️ Failed to log consultation: ${logErr.message}`);
+        }
+      }
       
       log("INFO", `✅ Permintaan konsultasi diproses untuk ${from}`);
     } catch (err) {
@@ -205,15 +222,19 @@ export class MessageHandler {
     
     // Handle button/interactive response
     let textBody = "";
+    let isButtonClick = false;
+    
     if (type === "text") {
       textBody = message.text?.body || "";
     } else if (type === "interactive") {
       const interactive = message.interactive;
+      isButtonClick = true;
+      
       if (interactive.type === "button_reply") {
-        textBody = interactive.button_reply.id; // ID button yang diklik
+        textBody = interactive.button_reply.id;
         log("INFO", `🔘 Button clicked: ${textBody}`);
       } else if (interactive.type === "list_reply") {
-        textBody = interactive.list_reply.id; // ID list yang dipilih
+        textBody = interactive.list_reply.id;
         log("INFO", `📋 List selected: ${textBody}`);
       }
     }
@@ -233,6 +254,16 @@ export class MessageHandler {
       id: messageId
     });
 
+    // 🔥 TRACK USER ACTIVITY
+    if (this.loggingEnabled) {
+      try {
+        await trackUser(from);
+        log("INFO", `👤 User tracked: ${from}`);
+      } catch (logErr) {
+        log("WARN", `⚠️ Failed to track user: ${logErr.message}`);
+      }
+    }
+
     // Check rate limit
     if (this.rateLimiter.isLimited(from)) {
       log("WARN", `⏱️ Rate limit kena untuk pengguna: ${from}`);
@@ -250,6 +281,38 @@ export class MessageHandler {
     // Get reply
     const { message: reply, reaction, keyword } = this.wa.getReply(textBody);
     log("INFO", `🎯 Kata kunci cocok: ${keyword}`);
+
+    // 🔥 LOG MESSAGE TO FIREBASE
+    if (this.loggingEnabled) {
+      try {
+        await logMessage({
+          messageId,
+          from,
+          type,
+          textBody,
+          keyword,
+          status: 'success'
+        });
+        log("INFO", `📝 Message logged to Firebase: ${messageId.substring(0, 20)}...`);
+
+        // Track keyword usage
+        await trackKeyword(keyword);
+        log("INFO", `🎯 Keyword tracked: ${keyword}`);
+
+        // Track button click if button was clicked
+        if (isButtonClick) {
+          await trackButtonClick({
+            from,
+            buttonId: textBody,
+            buttonTitle: textBody,
+            context: null
+          });
+          log("INFO", `🔘 Button click tracked: ${textBody}`);
+        }
+      } catch (logErr) {
+        log("WARN", `⚠️ Failed to log to Firebase: ${logErr.message}`);
+      }
+    }
 
     // Handle consultation
     if (keyword === "konsultasi") {
