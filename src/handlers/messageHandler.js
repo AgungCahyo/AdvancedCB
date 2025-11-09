@@ -219,8 +219,11 @@ export class MessageHandler {
     const messageId = message.id;
     const from = message.from;
     const type = message.type;
-    const name = message.contacts?.[0]?.profile?.name || null;
-    
+   const name =
+  message.contacts?.[0]?.profile?.name || // user punya profile name
+  message.pushName ||                     // fallback ke nama WhatsApp user
+  "Unknown";
+
     // Handle button/interactive response
     let textBody = "";
     let isButtonClick = false;
