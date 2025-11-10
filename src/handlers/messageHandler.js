@@ -1,4 +1,4 @@
-// src/handlers/messageHandler.js - FIXED VERSION
+// src/handlers/messageHandler.js - FULLY FIREBASE-DRIVEN VERSION
 import { getMessages, CONFIG } from "../config/index.js";
 import { db, FIREBASE_ENABLED } from '../utils/firebase.js';
 import { log } from "../utils/logger.js";
@@ -58,18 +58,76 @@ export class MessageHandler {
     return userName;
   }
 
+  /**
+   * Replace placeholders in message
+   */
+  replacePlaceholders(message, context = {}) {
+    const messages = getMessages();
+    let result = message;
+    
+    // Replace global placeholders
+    result = result
+      .replace(/\{\{ebook_link\}\}/g, messages.ebook_link)
+      .replace(/\{\{bonus_link\}\}/g, messages.bonus_link)
+      .replace(/\{\{konsultan_wa\}\}/g, messages.konsultan_wa);
+    
+    // Replace context-specific placeholders
+    if (context.name) {
+      result = result.replace(/\{name\}/g, context.name);
+    }
+    if (context.phone) {
+      result = result.replace(/\{phone\}/g, context.phone);
+    }
+    if (context.message) {
+      result = result.replace(/\{message\}/g, context.message);
+    }
+    if (context.timestamp) {
+      result = result.replace(/\{timestamp\}/g, context.timestamp);
+    }
+    
+    return result;
+  }
+
+  /**
+   * Get button configuration from Firebase
+   */
+  getButtonConfig(keyword) {
+    const messages = getMessages();
+    const buttonText = messages.system_messages?.button_text || {};
+    const buttonFooter = messages.system_messages?.button_footer || {};
+    
+   
+    
+    return configs[keyword] || null;
+  }
+
+  /**
+   * Get list menu configuration from Firebase
+   */
+  getListMenuConfig() {
+    const messages = getMessages();
+    const listConfig = messages.system_messages?.list_menu;
+    
+    return listConfig;
+  }
+
   async handleConsultation(from, textBody, messageId, reply, reaction, userName = "Unknown") {
     try {
+      const messages = getMessages();
+      
       await this.wa.sendTypingIndicator(from);
       await new Promise(resolve => setTimeout(resolve, 1000));
       await this.wa.sendMessage(from, reply);
 
-      const adminNotification = `🔔 *PERMINTAAN KONSULTASI*\n\n` +
-        `👤 Nama: ${userName}\n` +
-        `📱 Nomor: ${from}\n` +
-        `💬 Pesan: "${textBody}"\n` +
-        `⏰ Waktu: ${new Date().toLocaleString("id-ID", { timeZone: "Asia/Jakarta" })}\n\n` +
-        `Segera follow up untuk closing! 💰`;
+      // Get notification template from Firebase
+      const notificationTemplate = messages.system_messages?.consultation_notification?.template;
+      
+      const adminNotification = this.replacePlaceholders(notificationTemplate, {
+        name: userName,
+        phone: from,
+        message: textBody,
+        timestamp: new Date().toLocaleString("id-ID", { timeZone: "Asia/Jakarta" })
+      });
       
       await this.wa.sendMessage(CONFIG.adminNumber, adminNotification);
       await this.wa.sendReaction(from, messageId, reaction);
@@ -112,104 +170,43 @@ export class MessageHandler {
       // Personalize welcome message
       let personalizedReply = reply;
       if (keyword === "welcome" && userName !== "Unknown") {
-        personalizedReply = reply.replace("Halo Juragan!", `Halo ${userName}!`);
+        const greetingWithName = `Halo ${userName}!`;
+        personalizedReply = reply.replace("Halo Juragan!", greetingWithName);
       }
       
       // Strategy: Send buttons based on funnel stage
       if (keyword === "welcome") {
+        const config = this.getButtonConfig("welcome");
         await this.wa.sendInteractiveButtons(
           from,
           personalizedReply,
-          [
-            { id: "mulai", title: "🚀 Download Ebook" },
-            { id: "tips", title: "💡 Strategi BEP" },
-            { id: "konsultasi", title: "📞 Chat Konsultan" }
-          ],
-          "Pilih untuk mulai perjalanan Anda 👇"
+          config.buttons,
+          config.footer
         );
       } 
       else if (keyword === "help") {
+        const listConfig = this.getListMenuConfig();
         await this.wa.sendInteractiveList(
           from,
           personalizedReply,
-          "Menu",
-          [
-            {
-              title: "🎯 Aksi Cepat",
-              rows: [
-                { id: "mulai", title: "🚀 Download Ebook", description: "Panduan lengkap + voucher diskon" },
-                { id: "konsultasi", title: "📞 Chat Konsultan", description: "Simulasi ROI & rekomendasi paket" }
-              ]
-            },
-            {
-              title: "📚 Pembelajaran",
-              rows: [
-                { id: "tips", title: "💡 Strategi BEP <30 Hari", description: "5 strategi terbukti & real result" },
-                { id: "bonus", title: "🎁 Bonus Template", description: "Tools senilai 1.2 juta gratis" }
-              ]
-            },
-            {
-              title: "🚀 Upgrade Level",
-              rows: [
-                { id: "autopilot", title: "⚡ Sistem Autopilot", description: "Passive income 24/7 hands-free" }
-              ]
-            }
-          ],
-          "Jalan Pintas Juragan Photobox"
+          listConfig.buttonText,
+          listConfig.sections,
+          listConfig.footer
         );
       }
-      else if (keyword === "mulai") {
+      else if (["mulai", "tips", "bonus", "autopilot"].includes(keyword)) {
         await this.wa.sendMessage(from, personalizedReply);
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        await this.wa.sendInteractiveButtons(
-          from,
-          "Sudah download? Lanjut ke mana? 👇",
-          [
-            { id: "tips", title: "💡 Tips BEP" },
-            { id: "bonus", title: "🎁 Bonus Tools" },
-            { id: "autopilot", title: "🚀 Sistem Auto" }
-          ],
-          "Rekomendasi: TIPS → BONUS → AUTOPILOT"
-        );
-      }
-      else if (keyword === "tips") {
-        await this.wa.sendMessage(from, personalizedReply);
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        await this.wa.sendInteractiveButtons(
-          from,
-          "Mau action sekarang? 🔥",
-          [
-            { id: "bonus", title: "🎁 Ambil Bonus" },
-            { id: "autopilot", title: "🚀 Sistem Auto" },
-            { id: "konsultasi", title: "📞 Konsultasi" }
-          ],
-          "87% yang follow flow ini closing!"
-        );
-      }
-      else if (keyword === "bonus") {
-        await this.wa.sendMessage(from, personalizedReply);
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        await this.wa.sendInteractiveButtons(
-          from,
-          "Next level: Passive income autopilot! 💰",
-          [
-            { id: "autopilot", title: "⚡ Info Autopilot" },
-            { id: "konsultasi", title: "📞 Chat Sekarang" }
-          ],
-          "Voucher terbatas 12 slot tersisa!"
-        );
-      }
-      else if (keyword === "autopilot") {
-        await this.wa.sendMessage(from, personalizedReply);
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        await this.wa.sendInteractiveButtons(
-          from,
-          "Siap untuk ROI 4-6 bulan? 🎯",
-          [
-            { id: "konsultasi", title: "📞 Ya, Chat Konsultan" }
-          ],
-          "Kode: EBOOKKLIK2025 | 12 slot tersisa"
-        );
+        
+        const config = this.getButtonConfig(keyword);
+        if (config && config.followUp) {
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          await this.wa.sendInteractiveButtons(
+            from,
+            config.followUp,
+            config.buttons,
+            config.footer
+          );
+        }
       }
       else {
         await this.wa.sendMessage(from, personalizedReply);
@@ -237,14 +234,25 @@ export class MessageHandler {
     // ✅ Extract user name with priority fallback
     const userName = await this.getUserName(from, webhookData);
 
-    // ✅ Check working hours (FIXED TYPO)
+    // ✅ Check working hours
+    const messages = getMessages();
     const now = new Date().toLocaleString('en-US', { timeZone: 'Asia/Jakarta'});
     const hour = new Date(now).getHours();
     const isWorkingHour = hour >= 8 && hour < 17; // 08:00 - 17:00
     
     if (!isWorkingHour) {
-      const greeting = userName !== "Unknown" ? `Halo ${userName}! ⚠️` : "Halo! ⚠️";
-      const offlineMsg = `${greeting}\n\nSaat ini di luar jam kerja (08:00–17:00 WIB).\nPesan Anda akan dibalas pada hari kerja berikutnya.\n\nTerima kasih! 🙏`;
+      const offlineConfig = messages.system_messages?.offline_hours;
+      const shouldGreetWithName = offlineConfig?.greeting_with_name !== false;
+      
+      let offlineMsg = offlineConfig?.message ;
+      
+      // Replace {name} placeholder
+      if (shouldGreetWithName && userName !== "Unknown") {
+        offlineMsg = offlineMsg.replace("{name}", userName);
+      } else {
+        offlineMsg = offlineMsg.replace("{name}!", "!").replace("Halo !", "Halo!");
+      }
+      
       await this.wa.sendMessage(from, offlineMsg);
       log("INFO", `🕒 Auto-reply sent to ${userName} (${from}) - outside working hours`);
       return;
@@ -294,16 +302,15 @@ export class MessageHandler {
     // Check message type
     if (type !== "text" && type !== "interactive") {
       log("WARN", `❌ Unsupported message type: ${type}`);
-      const messages = getMessages();
       await this.wa.sendMessage(from, messages.errors.unsupported_type);
       return;
     }
 
-    // ✅ FIXED: Get keyword BEFORE trackUser
+    // ✅ Get keyword
     const { message: reply, reaction, keyword } = this.wa.getReply(textBody);
     log("INFO", `🎯 Keyword matched: ${keyword}`);
 
-    // 🔥 TRACK USER WITH NAME (NOW keyword is defined)
+    // 🔥 TRACK USER WITH NAME
     if (this.loggingEnabled) {
       try {
         await trackUser(from, userName, keyword);
