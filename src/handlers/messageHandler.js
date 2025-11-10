@@ -268,8 +268,8 @@ export class MessageHandler {
     const userName = await this.getUserName(from, webhookData);
 
     // ✅ Check working hours
-    const now = new Date();
-    const hour = now.getHours();
+    const now = new Date().toLocaleString('en-US', { timeZone: 'Asia/JAkarta'});
+    const hour = new Date(now).getHours();
     const isWorkingHour = hour >= 8 && hour < 17; // 08:00 - 17:00
     
     if (!isWorkingHour) {
