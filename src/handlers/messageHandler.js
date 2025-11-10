@@ -8,7 +8,6 @@ import {
   trackUser, 
   trackKeyword,
   trackButtonClick,
-  trackConversion,
   isLoggingEnabled
 } from "../services/firebaseLogger.js";
 import { doc, getDoc } from 'firebase/firestore';
@@ -289,7 +288,7 @@ export class MessageHandler {
     // 🔥 TRACK USER WITH NAME
     if (this.loggingEnabled) {
       try {
-        await trackUser(from, userName);
+        await trackUser(from, userName, keyword);
         log("INFO", `👤 User tracked: ${userName} (${from})`);
       } catch (logErr) {
         log("WARN", `⚠️ Failed to track user: ${logErr.message}`);

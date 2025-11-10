@@ -123,44 +123,35 @@ export async function logConsultation(consultationData) {
  * Track user activity
  * @param {string} userId - User phone number
  */
-export async function trackUser(userId, profileName = null) {
+export async function trackUser(userId, profileName = null, keyword = null) {
   if (!isInitialized) return null;
 
-  try {
-    const userRef = doc(db, 'users', userId);
-    const userSnap = await getDoc(userRef);
+  const userRef = doc(db, 'users', userId);
+  const userSnap = await getDoc(userRef);
 
-    if (!userSnap.exists()) {
-      // New user
-      await setDoc(userRef, {
-        userId,
-        name: profileName || 'Unknown', // ⬅️ Tambahan field baru
-        firstSeen: serverTimestamp(),
-        lastSeen: serverTimestamp(),
-        messageCount: 1,
-        conversationCount: 1,
-        lastKeyword: null,
-        tags: [],
-        status: 'active'
-      });
-
-      console.log(`👤 New user tracked: ${userId} (${profileName || 'Unknown'})`);
-      await updateStats('users');
-    } else {
-      // Existing user
-      await updateDoc(userRef, {
-        lastSeen: serverTimestamp(),
-        messageCount: increment(1),
-        ...(profileName && { name: profileName }) // ⬅️ Update name kalau ada perubahan
-      });
-    }
-
-    return userId;
-  } catch (error) {
-    console.error('❌ Failed to track user:', error.message);
-    return null;
+  if (!userSnap.exists()) {
+    await setDoc(userRef, {
+      userId,
+      name: profileName || 'Unknown',
+      firstSeen: serverTimestamp(),
+      lastSeen: serverTimestamp(),
+      messageCount: 1,
+      conversationCount: 1,
+      lastKeyword: keyword || null,
+      tags: [],
+      status: 'active'
+    });
+  } else {
+    await updateDoc(userRef, {
+      lastSeen: serverTimestamp(),
+      messageCount: increment(1),
+      ...(profileName && { name: profileName }),
+      ...(keyword && { lastKeyword: keyword }) // ⬅️ update keyword terbaru
+    });
   }
-}
+
+  return userId;
+} 
 
 
 /**
