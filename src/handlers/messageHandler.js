@@ -1,4 +1,6 @@
+// src/handlers/messageHandler.js - UPDATED to improve name extraction and message flow (Refactored)
 import { getMessages, CONFIG } from "../config/index.js";
+import { db, FIREBASE_ENABLED } from '../utils/firebase.js'; // Import from centralized module
 import { log } from "../utils/logger.js";
 import { 
   logMessage, 
@@ -9,38 +11,7 @@ import {
   trackConversion,
   isLoggingEnabled
 } from "../services/firebaseLogger.js";
-import { getFirestore, doc, getDoc } from 'firebase/firestore';
-import { initializeApp, getApps } from 'firebase/app';
-
-// Initialize Firebase for name lookup (reuse existing config)
-let db = null;
-const FIREBASE_ENABLED = !!(process.env.FIREBASE_API_KEY && process.env.FIREBASE_PROJECT_ID);
-
-if (FIREBASE_ENABLED) {
-  try {
-    const existingApps = getApps();
-    let app;
-    
-    // Reuse existing app or create new one
-    if (existingApps.length > 0) {
-      app = existingApps.find(a => a.name === 'logger') || existingApps[0];
-    } else {
-      const firebaseConfig = {
-        apiKey: process.env.FIREBASE_API_KEY,
-        authDomain: process.env.FIREBASE_AUTH_DOMAIN,
-        projectId: process.env.FIREBASE_PROJECT_ID,
-        storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
-        messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
-        appId: process.env.FIREBASE_APP_ID
-      };
-      app = initializeApp(firebaseConfig, 'messagehandler');
-    }
-    
-    db = getFirestore(app);
-  } catch (error) {
-    console.warn('⚠️ Firebase init for name lookup failed:', error.message);
-  }
-}
+import { doc, getDoc } from 'firebase/firestore';
 
 export class MessageHandler {
   constructor(whatsappService, cache, rateLimiter) {
@@ -71,7 +42,7 @@ export class MessageHandler {
       }
       
       // Priority 2: Get from Firestore cache
-      if (db && this.loggingEnabled) {
+      if (db && this.loggingEnabled && FIREBASE_ENABLED) {
         const userRef = doc(db, 'users', from);
         const userSnap = await getDoc(userRef);
         

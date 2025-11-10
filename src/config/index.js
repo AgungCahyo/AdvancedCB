@@ -1,6 +1,7 @@
+// src/config/index.js - Configuration and Messages Data Management (Refactored)
 import "dotenv/config";
-import { initializeApp } from 'firebase/app';
-import { getFirestore, doc, onSnapshot } from 'firebase/firestore';
+import { db, FIREBASE_ENABLED } from '../utils/firebase.js'; // Import from centralized module
+import { doc, onSnapshot } from 'firebase/firestore';
 import fs from "fs";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
@@ -16,30 +17,10 @@ let messagesData = null;
 let messagesLoaded = false;
 let useFirebase = false;
 
-// Check if Firebase is configured
-const FIREBASE_ENABLED = !!(
-  process.env.FIREBASE_API_KEY && 
-  process.env.FIREBASE_PROJECT_ID
-);
-
-if (FIREBASE_ENABLED) {
-  console.log("🔥 Firebase config detected, initializing...");
+if (FIREBASE_ENABLED && db) {
+  console.log("🔥 Firebase config detected, initializing messages listener...");
   
   try {
-    // Firebase configuration
-    const firebaseConfig = {
-      apiKey: process.env.FIREBASE_API_KEY,
-      authDomain: process.env.FIREBASE_AUTH_DOMAIN,
-      projectId: process.env.FIREBASE_PROJECT_ID,
-      storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
-      messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
-      appId: process.env.FIREBASE_APP_ID
-    };
-
-    // Initialize Firebase
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
-
     // Set up real-time listener
     const messagesRef = doc(db, 'bot_config', 'messages');
     
