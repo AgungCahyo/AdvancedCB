@@ -1,5 +1,7 @@
 import { getMessages, CONFIG } from "../config/index.js";
 import { log } from "../utils/logger.js";
+import { db } from "../services/firebaseLogger.js"; // Add this import
+import { doc, getDoc } from 'firebase/firestore';
 import { 
   logMessage, 
   logConsultation, 
@@ -215,25 +217,50 @@ export class MessageHandler {
     }
   }
 
-  async processMessage(message) {
+  async processMessage(message, webhookData = null) {
     const messageId = message.id;
     const from = message.from;
     const type = message.type;
-   const name =
-  message.contacts?.[0]?.profile?.name || // user punya profile name
-  message.pushName ||                     // fallback ke nama WhatsApp user
-  "Unknown";
+    
+    // ✅ CORRECT: Extract name with proper priority
+    let userName = "Unknown";
+    
+    try {
+      // Priority 1: From webhook value.contacts (most reliable)
+      if (webhookData?.contacts?.[0]?.profile?.name) {
+        userName = webhookData.contacts[0].profile.name;
+        log("INFO", `👤 Name from webhook contacts: ${userName}`);
+      }
+      // Priority 2: From message.contacts (alternative)
+      else if (message.contacts?.[0]?.profile?.name) {
+        userName = message.contacts[0].profile.name;
+        log("INFO", `👤 Name from message contacts: ${userName}`);
+      }
+      // Priority 3: Get from Firestore cache
+      else if (this.loggingEnabled) {
+        const userRef = doc(db, 'users', from);
+        const userSnap = await getDoc(userRef);
+        if (userSnap.exists() && userSnap.data().name) {
+          userName = userSnap.data().name;
+          log("INFO", `👤 Name from cache: ${userName}`);
+        }
+      }
+    } catch (err) {
+      log("WARN", `⚠️ Failed to extract name: ${err.message}`);
+    }
 
-
-  const now = new Date();
-  const hour = now.getHours();
-  const isWorkingHour = hour >= 8 && hour < 17; // 08:00 - 17:00
-  if (!isWorkingHour) {
-    const offlineMsg = "⚠️ Saat ini di luar jam kerja (08:00–17:00). Pesan Anda akan dibalas besok.";
-    await this.wa.sendMessage(from, offlineMsg);
-    log("INFO", `🕒 Pesan dari ${from} dikirim di luar jam kerja, dibalas otomatis`);
-    return;
-  }
+    // Check working hours
+    const now = new Date();
+    const hour = now.getHours();
+    const isWorkingHour = hour >= 8 && hour < 17; // 08:00 - 17:00
+    
+    if (!isWorkingHour) {
+      const offlineMsg = `Halo ${userName !== "Unknown" ? userName : ""}! ⚠️\n\nSaat ini di luar jam kerja (08:00–17:00 WIB).\nPesan Anda akan dibalas pada hari kerja berikutnya.\n\nTerima kasih! 🙏`;
+      await this.wa.sendMessage(from, offlineMsg);
+      log("INFO", `🕒 Auto-reply sent to ${from} (${userName}) - outside working hours`);
+      return;
+    }
+    
     // Handle button/interactive response
     let textBody = "";
     let isButtonClick = false;
@@ -263,16 +290,17 @@ export class MessageHandler {
 
     log("INFO", "📨 Pesan masuk", {
       from,
+      name: userName,
       type,
       body: textBody.substring(0, 50) + (textBody.length > 50 ? "..." : ""),
       id: messageId
     });
 
-    // 🔥 TRACK USER ACTIVITY
+    // 🔥 TRACK USER ACTIVITY WITH NAME
     if (this.loggingEnabled) {
       try {
-        await trackUser(from, name);
-        log("INFO", `👤 User tracked: ${from}`);
+        await trackUser(from, userName);
+        log("INFO", `👤 User tracked: ${from} (${userName})`);
       } catch (logErr) {
         log("WARN", `⚠️ Failed to track user: ${logErr.message}`);
       }
@@ -302,6 +330,7 @@ export class MessageHandler {
         await logMessage({
           messageId,
           from,
+          name: userName, // ✅ Include name in log
           type,
           textBody,
           keyword,

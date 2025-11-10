@@ -1,11 +1,9 @@
-import express from "express";
-import { CONFIG } from "../config/index.js";
-import { log } from "../utils/logger.js";
+// src/routes/webhook.js - UPDATE webhook POST handler
 
 export function createWebhookRouter(messageHandler, cache, rateLimiter) {
   const router = express.Router();
 
-  // Webhook verification
+  // Webhook verification (stays the same)
   router.get("/", (req, res) => {
     const mode = req.query["hub.mode"];
     const tokenSent = req.query["hub.verify_token"];
@@ -22,22 +20,38 @@ export function createWebhookRouter(messageHandler, cache, rateLimiter) {
     return res.sendStatus(403);
   });
 
-  // Webhook message handling
+  // ✅ UPDATED: Webhook message handling with contacts data
   router.post("/", async (req, res) => {
     res.sendStatus(200); // Quick response
 
     try {
+      // 🔍 OPTIONAL: Log full payload untuk debug (comment out di production)
+      // log("DEBUG", "📦 Webhook payload:", JSON.stringify(req.body, null, 2));
+
       const entry = req.body.entry?.[0];
       const change = entry?.changes?.[0];
       const value = change?.value;
       const message = value?.messages?.[0];
+      const contacts = value?.contacts; // ✅ Extract contacts from value
 
       if (!message) {
         log("INFO", "⏭️ Event bukan pesan, dilewati");
         return;
       }
 
-      await messageHandler.processMessage(message);
+      // ✅ PASS WEBHOOK DATA (including contacts) to messageHandler
+      const webhookData = {
+        contacts: contacts,
+        metadata: value?.metadata,
+        statuses: value?.statuses
+      };
+
+      // 🔍 DEBUG: Log contacts info (remove in production)
+      if (contacts?.[0]?.profile?.name) {
+        log("INFO", `👤 Contact name in webhook: ${contacts[0].profile.name}`);
+      }
+
+      await messageHandler.processMessage(message, webhookData);
 
     } catch (err) {
       log("ERROR", "❌ Error kritis di webhook POST:", err.message);
@@ -47,7 +61,7 @@ export function createWebhookRouter(messageHandler, cache, rateLimiter) {
     }
   });
 
-  // Health check
+  // Health check (stays the same)
   router.get("/health", (req, res) => {
     const uptime = process.uptime();
     const uptimeFormatted = `${Math.floor(uptime / 3600)}h ${Math.floor((uptime % 3600) / 60)}m ${Math.floor(uptime % 60)}s`;
@@ -69,7 +83,7 @@ export function createWebhookRouter(messageHandler, cache, rateLimiter) {
     });
   });
 
-  // Stats endpoint
+  // Stats endpoint (stays the same)
   router.get("/stats", (req, res) => {
     res.json({
       processedMessages: cache.size,
