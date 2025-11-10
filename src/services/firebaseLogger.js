@@ -62,6 +62,7 @@ export async function logMessage(messageData) {
     const messageRef = await addDoc(collection(db, 'messages'), {
       messageId: messageData.messageId,
       from: messageData.from,
+      userName: messageData.userName || 'Unknown',
       type: messageData.type,
       textBody: messageData.textBody,
       keyword: messageData.keyword,
