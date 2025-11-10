@@ -1,4 +1,4 @@
-// 📄 src/services/firebaseLogger.js
+// 📄 src/services/firebaseLogger.js - FIXED VERSION
 
 import { initializeApp } from 'firebase/app';
 import { 
@@ -21,7 +21,6 @@ import {
 let db = null;
 let isInitialized = false;
 
-// Check if Firebase is configured for logging
 const FIREBASE_LOGGING_ENABLED = !!(
   process.env.FIREBASE_API_KEY && 
   process.env.FIREBASE_PROJECT_ID
@@ -55,6 +54,9 @@ if (FIREBASE_LOGGING_ENABLED) {
 // LOGGING FUNCTIONS
 // ============================================================================
 
+/**
+ * ✅ FIX 1: Seragamkan field name menjadi 'name' (bukan userName)
+ */
 export async function logMessage(messageData) {
   if (!isInitialized) return null;
 
@@ -62,12 +64,12 @@ export async function logMessage(messageData) {
     const messageRef = await addDoc(collection(db, 'messages'), {
       messageId: messageData.messageId,
       from: messageData.from,
-      userName: messageData.userName || 'Unknown',
+      name: messageData.name || 'Unknown', // ✅ FIXED: Konsisten dengan handler
       type: messageData.type,
       textBody: messageData.textBody,
       keyword: messageData.keyword,
       timestamp: serverTimestamp(),
-      date: new Date().toISOString().split('T')[0], // YYYY-MM-DD
+      date: new Date().toISOString().split('T')[0],
       hour: new Date().getHours(),
       status: messageData.status || 'success'
     });
@@ -80,12 +82,16 @@ export async function logMessage(messageData) {
   }
 }
 
+/**
+ * ✅ FIX 2: Tambahkan field 'name' di consultation
+ */
 export async function logConsultation(consultationData) {
   if (!isInitialized) return null;
 
   try {
     const consultRef = await addDoc(collection(db, 'consultations'), {
       from: consultationData.from,
+      name: consultationData.name || 'Unknown', // ✅ FIXED: Tambah field name
       message: consultationData.message,
       timestamp: serverTimestamp(),
       date: new Date().toISOString().split('T')[0],
@@ -94,8 +100,6 @@ export async function logConsultation(consultationData) {
     });
 
     console.log(`📞 Consultation logged: ${consultRef.id}`);
-    
-    // Update stats
     await updateStats('consultations');
     
     return consultRef.id;
@@ -106,43 +110,55 @@ export async function logConsultation(consultationData) {
 }
 
 /**
- * Track user activity
- * @param {string} userId - User phone number
+ * ✅ FIX 3: Tambahkan error handling di trackUser
  */
 export async function trackUser(userId, profileName = null, keyword = null) {
   if (!isInitialized) return null;
 
-  const userRef = doc(db, 'users', userId);
-  const userSnap = await getDoc(userRef);
+  try {
+    const userRef = doc(db, 'users', userId);
+    const userSnap = await getDoc(userRef);
 
-  if (!userSnap.exists()) {
-    await setDoc(userRef, {
-      userId,
-      name: profileName || 'Unknown',
-      firstSeen: serverTimestamp(),
-      lastSeen: serverTimestamp(),
-      messageCount: 1,
-      conversationCount: 1,
-      lastKeyword: keyword || null,
-      tags: [],
-      status: 'active'
-    });
-  } else {
-    await updateDoc(userRef, {
-      lastSeen: serverTimestamp(),
-      messageCount: increment(1),
-      ...(profileName && { name: profileName }),
-      ...(keyword && { lastKeyword: keyword }) // ⬅️ update keyword terbaru
-    });
+    if (!userSnap.exists()) {
+      await setDoc(userRef, {
+        userId,
+        name: profileName || 'Unknown',
+        firstSeen: serverTimestamp(),
+        lastSeen: serverTimestamp(),
+        messageCount: 1,
+        conversationCount: 1,
+        lastKeyword: keyword || null,
+        tags: [],
+        status: 'active'
+      });
+      console.log(`👤 New user tracked: ${profileName} (${userId})`);
+    } else {
+      const updateData = {
+        lastSeen: serverTimestamp(),
+        messageCount: increment(1),
+      };
+
+      // ✅ IMPROVED: Hanya update name jika berbeda (prevent unnecessary writes)
+      if (profileName && userSnap.data().name !== profileName) {
+        updateData.name = profileName;
+      }
+
+      if (keyword) {
+        updateData.lastKeyword = keyword;
+      }
+
+      await updateDoc(userRef, updateData);
+    }
+
+    return userId;
+  } catch (error) {
+    console.error('❌ Failed to track user:', error.message);
+    return null;
   }
-
-  return userId;
-} 
-
+}
 
 /**
  * Update keyword statistics
- * @param {string} keyword - Keyword used
  */
 export async function trackKeyword(keyword) {
   if (!isInitialized) return null;
@@ -174,7 +190,6 @@ export async function trackKeyword(keyword) {
 
 /**
  * Track button click
- * @param {Object} buttonData - Button interaction data
  */
 export async function trackButtonClick(buttonData) {
   if (!isInitialized) return null;
@@ -184,7 +199,7 @@ export async function trackButtonClick(buttonData) {
       from: buttonData.from,
       buttonId: buttonData.buttonId,
       buttonTitle: buttonData.buttonTitle,
-      context: buttonData.context || null, // Previous keyword
+      context: buttonData.context || null,
       timestamp: serverTimestamp(),
       date: new Date().toISOString().split('T')[0]
     });
@@ -198,8 +213,7 @@ export async function trackButtonClick(buttonData) {
 }
 
 /**
- * Update global statistics
- * @param {string} metric - Metric to update (messages, users, consultations)
+ * ✅ FIX 4: Tambahkan error handling di updateStats
  */
 async function updateStats(metric) {
   if (!isInitialized) return;
@@ -236,10 +250,7 @@ async function updateStats(metric) {
 }
 
 /**
- * Track conversion (when user moves through funnel)
- * @param {string} from - User ID
- * @param {string} fromKeyword - Starting keyword
- * @param {string} toKeyword - Next keyword
+ * Track conversion
  */
 export async function trackConversion(from, fromKeyword, toKeyword) {
   if (!isInitialized) return null;
@@ -253,7 +264,6 @@ export async function trackConversion(from, fromKeyword, toKeyword) {
       date: new Date().toISOString().split('T')[0]
     });
 
-    // Update keyword conversion count if moving to konsultasi
     if (toKeyword === 'konsultasi') {
       const today = new Date().toISOString().split('T')[0];
       const statRef = doc(db, 'keyword_stats', `${fromKeyword}_${today}`);
@@ -261,7 +271,6 @@ export async function trackConversion(from, fromKeyword, toKeyword) {
       await updateDoc(statRef, {
         conversions: increment(1)
       }).catch(() => {
-        // Create if doesn't exist
         setDoc(statRef, {
           keyword: fromKeyword,
           date: today,
@@ -279,9 +288,7 @@ export async function trackConversion(from, fromKeyword, toKeyword) {
 }
 
 /**
- * Get user journey (for dashboard)
- * @param {string} userId - User phone number
- * @param {number} limitCount - Max messages to return
+ * Get user journey
  */
 export async function getUserJourney(userId, limitCount = 20) {
   if (!isInitialized) return [];
@@ -305,16 +312,10 @@ export async function getUserJourney(userId, limitCount = 20) {
   }
 }
 
-/**
- * Check if Firebase logging is available
- */
 export function isLoggingEnabled() {
   return isInitialized;
 }
 
-/**
- * Get logging status
- */
 export function getLoggingStatus() {
   return {
     enabled: isInitialized,
@@ -323,29 +324,23 @@ export function getLoggingStatus() {
 }
 
 // ============================================================================
-// BATCH LOGGING (for high traffic)
+// BATCH LOGGING
 // ============================================================================
 
 let batchQueue = [];
 const BATCH_SIZE = 10;
-const BATCH_INTERVAL = 5000; // 5 seconds
+const BATCH_INTERVAL = 5000;
 
-/**
- * Add to batch queue (for high-volume logging)
- */
-export function queueLog(collection, data) {
+export function queueLog(collectionName, data) {
   if (!isInitialized) return;
 
-  batchQueue.push({ collection, data });
+  batchQueue.push({ collectionName, data });
 
   if (batchQueue.length >= BATCH_SIZE) {
     flushBatchQueue();
   }
 }
 
-/**
- * Flush batch queue to Firebase
- */
 async function flushBatchQueue() {
   if (batchQueue.length === 0) return;
 
@@ -354,7 +349,7 @@ async function flushBatchQueue() {
 
   try {
     const promises = batch.map(item => 
-      addDoc(collection(db, item.collection), {
+      addDoc(collection(db, item.collectionName), {
         ...item.data,
         timestamp: serverTimestamp()
       })
@@ -364,12 +359,10 @@ async function flushBatchQueue() {
     console.log(`📦 Batch logged: ${batch.length} items`);
   } catch (error) {
     console.error('❌ Batch logging failed:', error.message);
-    // Re-queue failed items
     batchQueue.push(...batch);
   }
 }
 
-// Auto-flush batch queue every interval
 if (isInitialized) {
   setInterval(flushBatchQueue, BATCH_INTERVAL);
 }
@@ -378,9 +371,6 @@ if (isInitialized) {
 // ERROR LOGGING
 // ============================================================================
 
-/**
- * Log errors for monitoring
- */
 export async function logError(errorData) {
   if (!isInitialized) return null;
 
