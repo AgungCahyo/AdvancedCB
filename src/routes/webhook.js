@@ -1,4 +1,7 @@
 // src/routes/webhook.js - UPDATE webhook POST handler
+import express from "express";
+import { CONFIG } from "../config/index.js";
+import { log } from "../utils/logger.js";
 
 export function createWebhookRouter(messageHandler, cache, rateLimiter) {
   const router = express.Router();
