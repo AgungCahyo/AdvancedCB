@@ -1,7 +1,4 @@
-// ============================================================================
 // 📄 src/services/firebaseLogger.js
-// Service untuk log data chat ke Firebase
-// ============================================================================
 
 import { initializeApp } from 'firebase/app';
 import { 
@@ -20,10 +17,6 @@ import {
   limit,
   orderBy
 } from 'firebase/firestore';
-
-// ============================================================================
-// FIREBASE INITIALIZATION
-// ============================================================================
 
 let db = null;
 let isInitialized = false;
@@ -62,10 +55,6 @@ if (FIREBASE_LOGGING_ENABLED) {
 // LOGGING FUNCTIONS
 // ============================================================================
 
-/**
- * Log incoming message
- * @param {Object} messageData - Message data to log
- */
 export async function logMessage(messageData) {
   if (!isInitialized) return null;
 
@@ -90,10 +79,6 @@ export async function logMessage(messageData) {
   }
 }
 
-/**
- * Log consultation request
- * @param {Object} consultationData - Consultation data
- */
 export async function logConsultation(consultationData) {
   if (!isInitialized) return null;
 

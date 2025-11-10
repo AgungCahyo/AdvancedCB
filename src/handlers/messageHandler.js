@@ -1,6 +1,6 @@
-// src/handlers/messageHandler.js - UPDATED to improve name extraction and message flow (Refactored)
+// src/handlers/messageHandler.js - FIXED VERSION
 import { getMessages, CONFIG } from "../config/index.js";
-import { db, FIREBASE_ENABLED } from '../utils/firebase.js'; // Import from centralized module
+import { db, FIREBASE_ENABLED } from '../utils/firebase.js';
 import { log } from "../utils/logger.js";
 import { 
   logMessage, 
@@ -237,8 +237,8 @@ export class MessageHandler {
     // ✅ Extract user name with priority fallback
     const userName = await this.getUserName(from, webhookData);
 
-    // ✅ Check working hours
-    const now = new Date().toLocaleString('en-US', { timeZone: 'Asia/JAkarta'});
+    // ✅ Check working hours (FIXED TYPO)
+    const now = new Date().toLocaleString('en-US', { timeZone: 'Asia/Jakarta'});
     const hour = new Date(now).getHours();
     const isWorkingHour = hour >= 8 && hour < 17; // 08:00 - 17:00
     
@@ -285,16 +285,6 @@ export class MessageHandler {
       id: messageId
     });
 
-    // 🔥 TRACK USER WITH NAME
-    if (this.loggingEnabled) {
-      try {
-        await trackUser(from, userName, keyword);
-        log("INFO", `👤 User tracked: ${userName} (${from})`);
-      } catch (logErr) {
-        log("WARN", `⚠️ Failed to track user: ${logErr.message}`);
-      }
-    }
-
     // Check rate limit
     if (this.rateLimiter.isLimited(from)) {
       log("WARN", `⏱️ Rate limit hit for: ${from}`);
@@ -309,9 +299,19 @@ export class MessageHandler {
       return;
     }
 
-    // Get reply
+    // ✅ FIXED: Get keyword BEFORE trackUser
     const { message: reply, reaction, keyword } = this.wa.getReply(textBody);
     log("INFO", `🎯 Keyword matched: ${keyword}`);
+
+    // 🔥 TRACK USER WITH NAME (NOW keyword is defined)
+    if (this.loggingEnabled) {
+      try {
+        await trackUser(from, userName, keyword);
+        log("INFO", `👤 User tracked: ${userName} (${from})`);
+      } catch (logErr) {
+        log("WARN", `⚠️ Failed to track user: ${logErr.message}`);
+      }
+    }
 
     // 🔥 LOG MESSAGE TO FIREBASE
     if (this.loggingEnabled) {
