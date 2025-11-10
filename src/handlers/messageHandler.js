@@ -1,7 +1,5 @@
 import { getMessages, CONFIG } from "../config/index.js";
 import { log } from "../utils/logger.js";
-import { db } from "../services/firebaseLogger.js"; // Add this import
-import { doc, getDoc } from 'firebase/firestore';
 import { 
   logMessage, 
   logConsultation, 
@@ -11,6 +9,38 @@ import {
   trackConversion,
   isLoggingEnabled
 } from "../services/firebaseLogger.js";
+import { getFirestore, doc, getDoc } from 'firebase/firestore';
+import { initializeApp, getApps } from 'firebase/app';
+
+// Initialize Firebase for name lookup (reuse existing config)
+let db = null;
+const FIREBASE_ENABLED = !!(process.env.FIREBASE_API_KEY && process.env.FIREBASE_PROJECT_ID);
+
+if (FIREBASE_ENABLED) {
+  try {
+    const existingApps = getApps();
+    let app;
+    
+    // Reuse existing app or create new one
+    if (existingApps.length > 0) {
+      app = existingApps.find(a => a.name === 'logger') || existingApps[0];
+    } else {
+      const firebaseConfig = {
+        apiKey: process.env.FIREBASE_API_KEY,
+        authDomain: process.env.FIREBASE_AUTH_DOMAIN,
+        projectId: process.env.FIREBASE_PROJECT_ID,
+        storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
+        messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
+        appId: process.env.FIREBASE_APP_ID
+      };
+      app = initializeApp(firebaseConfig, 'messagehandler');
+    }
+    
+    db = getFirestore(app);
+  } catch (error) {
+    console.warn('⚠️ Firebase init for name lookup failed:', error.message);
+  }
+}
 
 export class MessageHandler {
   constructor(whatsappService, cache, rateLimiter) {
@@ -26,14 +56,47 @@ export class MessageHandler {
     }
   }
 
-  async handleConsultation(from, textBody, messageId, reply, reaction) {
+  /**
+   * Extract user name from webhook with fallbacks
+   */
+  async getUserName(from, webhookData) {
+    let userName = "Unknown";
+    
+    try {
+      // Priority 1: From webhook value.contacts (most reliable)
+      if (webhookData?.contacts?.[0]?.profile?.name) {
+        userName = webhookData.contacts[0].profile.name;
+        log("INFO", `👤 Name from webhook: ${userName}`);
+        return userName;
+      }
+      
+      // Priority 2: Get from Firestore cache
+      if (db && this.loggingEnabled) {
+        const userRef = doc(db, 'users', from);
+        const userSnap = await getDoc(userRef);
+        
+        if (userSnap.exists() && userSnap.data().name) {
+          userName = userSnap.data().name;
+          log("INFO", `👤 Name from cache: ${userName}`);
+          return userName;
+        }
+      }
+    } catch (err) {
+      log("WARN", `⚠️ Failed to extract name: ${err.message}`);
+    }
+    
+    return userName;
+  }
+
+  async handleConsultation(from, textBody, messageId, reply, reaction, userName = "Unknown") {
     try {
       await this.wa.sendTypingIndicator(from);
       await new Promise(resolve => setTimeout(resolve, 1000));
       await this.wa.sendMessage(from, reply);
 
       const adminNotification = `🔔 *PERMINTAAN KONSULTASI*\n\n` +
-        `👤 Nomor: ${from}\n` +
+        `👤 Nama: ${userName}\n` +
+        `📱 Nomor: ${from}\n` +
         `💬 Pesan: "${textBody}"\n` +
         `⏰ Waktu: ${new Date().toLocaleString("id-ID", { timeZone: "Asia/Jakarta" })}\n\n` +
         `Segera follow up untuk closing! 💰`;
@@ -46,26 +109,27 @@ export class MessageHandler {
         try {
           await logConsultation({
             from,
+            name: userName,
             message: textBody,
             status: 'pending',
             notified: true
           });
-          log("INFO", `📞 Consultation logged to Firebase for ${from}`);
+          log("INFO", `📞 Consultation logged for ${userName} (${from})`);
         } catch (logErr) {
           log("WARN", `⚠️ Failed to log consultation: ${logErr.message}`);
         }
       }
       
-      log("INFO", `✅ Permintaan konsultasi diproses untuk ${from}`);
+      log("INFO", `✅ Consultation processed for ${userName} (${from})`);
     } catch (err) {
-      log("ERROR", "❌ Error saat memproses konsultasi:", err.message);
+      log("ERROR", "❌ Error processing consultation:", err.message);
       const messages = getMessages();
       await this.wa.sendMessage(from, messages.errors.general_error);
       throw err;
     }
   }
 
-  async handleRegularMessage(from, messageId, reply, reaction, keyword) {
+  async handleRegularMessage(from, messageId, reply, reaction, keyword, userName = "Unknown") {
     try {
       await this.wa.sendReaction(from, messageId, reaction);
       await this.wa.sendTypingIndicator(from);
@@ -73,15 +137,19 @@ export class MessageHandler {
       const delay = Math.floor(Math.random() * 2000) + 1000;
       await new Promise(resolve => setTimeout(resolve, delay));
 
-      log("INFO", `💬 Mengirim balasan untuk kata kunci: ${keyword}`);
+      log("INFO", `💬 Sending reply for keyword: ${keyword} to ${userName}`);
       
-      // Strategy: Kirim button sesuai funnel stage untuk max conversion
+      // Personalize welcome message
+      let personalizedReply = reply;
+      if (keyword === "welcome" && userName !== "Unknown") {
+        personalizedReply = reply.replace("Halo Juragan!", `Halo ${userName}!`);
+      }
       
+      // Strategy: Send buttons based on funnel stage
       if (keyword === "welcome") {
-        // Welcome: Quick action buttons
         await this.wa.sendInteractiveButtons(
           from,
-          reply,
+          personalizedReply,
           [
             { id: "mulai", title: "🚀 Download Ebook" },
             { id: "tips", title: "💡 Strategi BEP" },
@@ -91,50 +159,29 @@ export class MessageHandler {
         );
       } 
       else if (keyword === "help") {
-        // Help: Show all menu with list
         await this.wa.sendInteractiveList(
           from,
-          reply,
+          personalizedReply,
           "Menu",
           [
             {
               title: "🎯 Aksi Cepat",
               rows: [
-                { 
-                  id: "mulai", 
-                  title: "🚀 Download Ebook", 
-                  description: "Panduan lengkap + voucher diskon" 
-                },
-                { 
-                  id: "konsultasi", 
-                  title: "📞 Chat Konsultan", 
-                  description: "Simulasi ROI & rekomendasi paket" 
-                }
+                { id: "mulai", title: "🚀 Download Ebook", description: "Panduan lengkap + voucher diskon" },
+                { id: "konsultasi", title: "📞 Chat Konsultan", description: "Simulasi ROI & rekomendasi paket" }
               ]
             },
             {
               title: "📚 Pembelajaran",
               rows: [
-                { 
-                  id: "tips", 
-                  title: "💡 Strategi BEP <30 Hari", 
-                  description: "5 strategi terbukti & real result" 
-                },
-                { 
-                  id: "bonus", 
-                  title: "🎁 Bonus Template", 
-                  description: "Tools senilai 1.2 juta gratis" 
-                }
+                { id: "tips", title: "💡 Strategi BEP <30 Hari", description: "5 strategi terbukti & real result" },
+                { id: "bonus", title: "🎁 Bonus Template", description: "Tools senilai 1.2 juta gratis" }
               ]
             },
             {
               title: "🚀 Upgrade Level",
               rows: [
-                { 
-                  id: "autopilot", 
-                  title: "⚡ Sistem Autopilot", 
-                  description: "Passive income 24/7 hands-free" 
-                }
+                { id: "autopilot", title: "⚡ Sistem Autopilot", description: "Passive income 24/7 hands-free" }
               ]
             }
           ],
@@ -142,8 +189,7 @@ export class MessageHandler {
         );
       }
       else if (keyword === "mulai") {
-        // Setelah download: Guide ke next step
-        await this.wa.sendMessage(from, reply);
+        await this.wa.sendMessage(from, personalizedReply);
         await new Promise(resolve => setTimeout(resolve, 2000));
         await this.wa.sendInteractiveButtons(
           from,
@@ -157,8 +203,7 @@ export class MessageHandler {
         );
       }
       else if (keyword === "tips") {
-        // Setelah tips: Push ke bonus atau autopilot
-        await this.wa.sendMessage(from, reply);
+        await this.wa.sendMessage(from, personalizedReply);
         await new Promise(resolve => setTimeout(resolve, 2000));
         await this.wa.sendInteractiveButtons(
           from,
@@ -172,8 +217,7 @@ export class MessageHandler {
         );
       }
       else if (keyword === "bonus") {
-        // Setelah bonus: Strong push ke autopilot/konsultasi
-        await this.wa.sendMessage(from, reply);
+        await this.wa.sendMessage(from, personalizedReply);
         await new Promise(resolve => setTimeout(resolve, 2000));
         await this.wa.sendInteractiveButtons(
           from,
@@ -186,8 +230,7 @@ export class MessageHandler {
         );
       }
       else if (keyword === "autopilot") {
-        // Setelah autopilot: Direct CTA konsultasi
-        await this.wa.sendMessage(from, reply);
+        await this.wa.sendMessage(from, personalizedReply);
         await new Promise(resolve => setTimeout(resolve, 2000));
         await this.wa.sendInteractiveButtons(
           from,
@@ -199,20 +242,19 @@ export class MessageHandler {
         );
       }
       else {
-        // Default: Kirim text aja untuk keyword lain
-        await this.wa.sendMessage(from, reply);
+        await this.wa.sendMessage(from, personalizedReply);
       }
       
       await this.wa.markAsRead(messageId);
 
-      log("INFO", `✅ Alur pesan selesai untuk ${from}`);
+      log("INFO", `✅ Message flow completed for ${userName} (${from})`);
     } catch (err) {
-      log("ERROR", "❌ Error dalam alur pesan:", err.message);
+      log("ERROR", "❌ Error in message flow:", err.message);
       try {
         const messages = getMessages();
         await this.wa.sendMessage(from, messages.errors.general_error);
       } catch (recoveryErr) {
-        log("ERROR", "❌ Gagal mengirim pesan error ke pengguna:", recoveryErr.message);
+        log("ERROR", "❌ Failed to send error message:", recoveryErr.message);
       }
     }
   }
@@ -222,42 +264,19 @@ export class MessageHandler {
     const from = message.from;
     const type = message.type;
     
-    // ✅ CORRECT: Extract name with proper priority
-    let userName = "Unknown";
-    
-    try {
-      // Priority 1: From webhook value.contacts (most reliable)
-      if (webhookData?.contacts?.[0]?.profile?.name) {
-        userName = webhookData.contacts[0].profile.name;
-        log("INFO", `👤 Name from webhook contacts: ${userName}`);
-      }
-      // Priority 2: From message.contacts (alternative)
-      else if (message.contacts?.[0]?.profile?.name) {
-        userName = message.contacts[0].profile.name;
-        log("INFO", `👤 Name from message contacts: ${userName}`);
-      }
-      // Priority 3: Get from Firestore cache
-      else if (this.loggingEnabled) {
-        const userRef = doc(db, 'users', from);
-        const userSnap = await getDoc(userRef);
-        if (userSnap.exists() && userSnap.data().name) {
-          userName = userSnap.data().name;
-          log("INFO", `👤 Name from cache: ${userName}`);
-        }
-      }
-    } catch (err) {
-      log("WARN", `⚠️ Failed to extract name: ${err.message}`);
-    }
+    // ✅ Extract user name with priority fallback
+    const userName = await this.getUserName(from, webhookData);
 
-    // Check working hours
+    // ✅ Check working hours
     const now = new Date();
     const hour = now.getHours();
     const isWorkingHour = hour >= 8 && hour < 17; // 08:00 - 17:00
     
     if (!isWorkingHour) {
-      const offlineMsg = `Halo ${userName !== "Unknown" ? userName : ""}! ⚠️\n\nSaat ini di luar jam kerja (08:00–17:00 WIB).\nPesan Anda akan dibalas pada hari kerja berikutnya.\n\nTerima kasih! 🙏`;
+      const greeting = userName !== "Unknown" ? `Halo ${userName}! ⚠️` : "Halo! ⚠️";
+      const offlineMsg = `${greeting}\n\nSaat ini di luar jam kerja (08:00–17:00 WIB).\nPesan Anda akan dibalas pada hari kerja berikutnya.\n\nTerima kasih! 🙏`;
       await this.wa.sendMessage(from, offlineMsg);
-      log("INFO", `🕒 Auto-reply sent to ${from} (${userName}) - outside working hours`);
+      log("INFO", `🕒 Auto-reply sent to ${userName} (${from}) - outside working hours`);
       return;
     }
     
@@ -282,13 +301,13 @@ export class MessageHandler {
 
     // Check cache
     if (this.cache.has(messageId)) {
-      log("WARN", `⏭️ Pesan duplikat diabaikan: ${messageId}`);
+      log("WARN", `⏭️ Duplicate message ignored: ${messageId}`);
       return;
     }
     
     this.cache.add(messageId);
 
-    log("INFO", "📨 Pesan masuk", {
+    log("INFO", "📨 Message received", {
       from,
       name: userName,
       type,
@@ -296,11 +315,11 @@ export class MessageHandler {
       id: messageId
     });
 
-    // 🔥 TRACK USER ACTIVITY WITH NAME
+    // 🔥 TRACK USER WITH NAME
     if (this.loggingEnabled) {
       try {
         await trackUser(from, userName);
-        log("INFO", `👤 User tracked: ${from} (${userName})`);
+        log("INFO", `👤 User tracked: ${userName} (${from})`);
       } catch (logErr) {
         log("WARN", `⚠️ Failed to track user: ${logErr.message}`);
       }
@@ -308,13 +327,13 @@ export class MessageHandler {
 
     // Check rate limit
     if (this.rateLimiter.isLimited(from)) {
-      log("WARN", `⏱️ Rate limit kena untuk pengguna: ${from}`);
+      log("WARN", `⏱️ Rate limit hit for: ${from}`);
       return;
     }
 
     // Check message type
     if (type !== "text" && type !== "interactive") {
-      log("WARN", `❌ Tipe pesan tidak didukung: ${type}`);
+      log("WARN", `❌ Unsupported message type: ${type}`);
       const messages = getMessages();
       await this.wa.sendMessage(from, messages.errors.unsupported_type);
       return;
@@ -322,7 +341,7 @@ export class MessageHandler {
 
     // Get reply
     const { message: reply, reaction, keyword } = this.wa.getReply(textBody);
-    log("INFO", `🎯 Kata kunci cocok: ${keyword}`);
+    log("INFO", `🎯 Keyword matched: ${keyword}`);
 
     // 🔥 LOG MESSAGE TO FIREBASE
     if (this.loggingEnabled) {
@@ -330,19 +349,17 @@ export class MessageHandler {
         await logMessage({
           messageId,
           from,
-          name: userName, // ✅ Include name in log
+          name: userName,
           type,
           textBody,
           keyword,
           status: 'success'
         });
-        log("INFO", `📝 Message logged to Firebase: ${messageId.substring(0, 20)}...`);
+        log("INFO", `📝 Message logged: ${messageId.substring(0, 20)}...`);
 
-        // Track keyword usage
         await trackKeyword(keyword);
         log("INFO", `🎯 Keyword tracked: ${keyword}`);
 
-        // Track button click if button was clicked
         if (isButtonClick) {
           await trackButtonClick({
             from,
@@ -359,11 +376,11 @@ export class MessageHandler {
 
     // Handle consultation
     if (keyword === "konsultasi") {
-      await this.handleConsultation(from, textBody, messageId, reply, reaction);
+      await this.handleConsultation(from, textBody, messageId, reply, reaction, userName);
       return;
     }
 
     // Handle regular message
-    await this.handleRegularMessage(from, messageId, reply, reaction, keyword);
+    await this.handleRegularMessage(from, messageId, reply, reaction, keyword, userName);
   }
 }

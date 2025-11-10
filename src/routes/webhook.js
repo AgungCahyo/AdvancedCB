@@ -25,28 +25,24 @@ export function createWebhookRouter(messageHandler, cache, rateLimiter) {
     res.sendStatus(200); // Quick response
 
     try {
-      // 🔍 OPTIONAL: Log full payload untuk debug (comment out di production)
-      // log("DEBUG", "📦 Webhook payload:", JSON.stringify(req.body, null, 2));
-
       const entry = req.body.entry?.[0];
       const change = entry?.changes?.[0];
       const value = change?.value;
       const message = value?.messages?.[0];
-      const contacts = value?.contacts; // ✅ Extract contacts from value
+      const contacts = value?.contacts; // ✅ Extract contacts
 
       if (!message) {
-        log("INFO", "⏭️ Event bukan pesan, dilewati");
+        log("INFO", "⏭️ Non-message event, skipped");
         return;
       }
 
-      // ✅ PASS WEBHOOK DATA (including contacts) to messageHandler
+      // ✅ Pass webhook data (including contacts)
       const webhookData = {
-        contacts: contacts,
-        metadata: value?.metadata,
-        statuses: value?.statuses
+        contacts: contacts || [],
+        metadata: value?.metadata
       };
 
-      // 🔍 DEBUG: Log contacts info (remove in production)
+      // 🔍 Debug log (comment out in production)
       if (contacts?.[0]?.profile?.name) {
         log("INFO", `👤 Contact name in webhook: ${contacts[0].profile.name}`);
       }
@@ -54,7 +50,7 @@ export function createWebhookRouter(messageHandler, cache, rateLimiter) {
       await messageHandler.processMessage(message, webhookData);
 
     } catch (err) {
-      log("ERROR", "❌ Error kritis di webhook POST:", err.message);
+      log("ERROR", "❌ Critical webhook error:", err.message);
       if (err.stack) {
         log("ERROR", "Stack trace:", err.stack);
       }
