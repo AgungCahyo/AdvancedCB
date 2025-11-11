@@ -1,4 +1,4 @@
-// src/handlers/messageHandler.js - FULLY FIREBASE-DRIVEN VERSION
+// src/handlers/messageHandler.js - UPDATED WITH DYNAMIC WORKING HOURS
 import { getMessages, CONFIG } from "../config/index.js";
 import { db, FIREBASE_ENABLED } from '../utils/firebase.js';
 import { log } from "../utils/logger.js";
@@ -23,6 +23,51 @@ export class MessageHandler {
       log("INFO", "📊 Firebase analytics logging enabled");
     } else {
       log("INFO", "📁 Firebase analytics logging disabled (config not found)");
+    }
+  }
+
+  /**
+   * Check if current time is within working hours (from Firebase)
+   */
+  async isWithinWorkingHours() {
+    try {
+      const messages = getMessages();
+      const workingHours = messages.working_hours;
+
+      // If working hours not configured or disabled, allow all messages
+      if (!workingHours || !workingHours.enabled) {
+        return true;
+      }
+
+      const now = new Date().toLocaleString('en-US', { 
+        timeZone: workingHours.timezone || 'Asia/Jakarta'
+      });
+      const currentDate = new Date(now);
+      const currentHour = currentDate.getHours();
+      const currentDay = currentDate.getDay(); // 0=Sunday, 1=Monday, etc.
+
+      // Check if current day is in working days
+      const workingDays = workingHours.days || [1, 2, 3, 4, 5]; // Default Mon-Fri
+      if (!workingDays.includes(currentDay)) {
+        log("INFO", `🕒 Outside working days (current: ${currentDay})`);
+        return false;
+      }
+
+      // Check if current hour is within working hours
+      const startHour = workingHours.start_hour || 8;
+      const endHour = workingHours.end_hour || 17;
+      
+      const isWithinHours = currentHour >= startHour && currentHour < endHour;
+      
+      if (!isWithinHours) {
+        log("INFO", `🕒 Outside working hours (current: ${currentHour}, range: ${startHour}-${endHour})`);
+      }
+
+      return isWithinHours;
+    } catch (error) {
+      log("WARN", `⚠️ Error checking working hours: ${error.message}`);
+      // If error, default to allowing messages (fail-open)
+      return true;
     }
   }
 
@@ -96,7 +141,49 @@ export class MessageHandler {
     const buttonText = messages.system_messages?.button_text || {};
     const buttonFooter = messages.system_messages?.button_footer || {};
     
-   
+    const configs = {
+      welcome: {
+        buttons: [
+          { id: "mulai", title: buttonText.welcome_download || "📥 Download Ebook" },
+          { id: "tips", title: buttonText.welcome_tips || "💡 Tips BEP" },
+          { id: "konsultasi", title: buttonText.welcome_consultation || "📞 Konsultasi" }
+        ],
+        footer: buttonFooter.welcome || "Pilih opsi di bawah"
+      },
+      mulai: {
+        followUp: messages.system_messages?.follow_up_messages?.after_mulai,
+        buttons: [
+          { id: "tips", title: buttonText.mulai_tips || "💡 Tips BEP" },
+          { id: "bonus", title: buttonText.mulai_bonus || "🎁 Bonus" },
+          { id: "autopilot", title: buttonText.mulai_autopilot || "🚀 Autopilot" }
+        ],
+        footer: buttonFooter.mulai || "Mau lanjut kemana?"
+      },
+      tips: {
+        followUp: messages.system_messages?.follow_up_messages?.after_tips,
+        buttons: [
+          { id: "bonus", title: buttonText.tips_bonus || "🎁 Bonus" },
+          { id: "autopilot", title: buttonText.tips_autopilot || "🚀 Autopilot" },
+          { id: "konsultasi", title: buttonText.tips_consultation || "📞 Konsultasi" }
+        ],
+        footer: buttonFooter.tips || "Pilihan selanjutnya"
+      },
+      bonus: {
+        followUp: messages.system_messages?.follow_up_messages?.after_bonus,
+        buttons: [
+          { id: "autopilot", title: buttonText.bonus_autopilot || "🚀 Autopilot" },
+          { id: "konsultasi", title: buttonText.bonus_consultation || "📞 Konsultasi" }
+        ],
+        footer: buttonFooter.bonus || "Tertarik?"
+      },
+      autopilot: {
+        followUp: messages.system_messages?.follow_up_messages?.after_autopilot,
+        buttons: [
+          { id: "konsultasi", title: buttonText.autopilot_consultation || "📞 Konsultasi Sekarang" }
+        ],
+        footer: buttonFooter.autopilot || "Siap untuk bertumbuh?"
+      }
+    };
     
     return configs[keyword] || null;
   }
@@ -234,17 +321,15 @@ export class MessageHandler {
     // ✅ Extract user name with priority fallback
     const userName = await this.getUserName(from, webhookData);
 
-    // ✅ Check working hours
-    const messages = getMessages();
-    const now = new Date().toLocaleString('en-US', { timeZone: 'Asia/Jakarta'});
-    const hour = new Date(now).getHours();
-    const isWorkingHour = hour >= 8 && hour < 17; 
+    // ✅ Check working hours (now from Firebase)
+    const isWorkingTime = await this.isWithinWorkingHours();
     
-    if (!isWorkingHour) {
+    if (!isWorkingTime) {
+      const messages = getMessages();
       const offlineConfig = messages.system_messages?.offline_hours;
       const shouldGreetWithName = offlineConfig?.greeting_with_name !== false;
       
-      let offlineMsg = offlineConfig?.message ;
+      let offlineMsg = offlineConfig?.message || "Maaf, kami sedang di luar jam kerja. Silakan hubungi kami kembali pada jam kerja.";
       
       // Replace {name} placeholder
       if (shouldGreetWithName && userName !== "Unknown") {
@@ -302,6 +387,7 @@ export class MessageHandler {
     // Check message type
     if (type !== "text" && type !== "interactive") {
       log("WARN", `❌ Unsupported message type: ${type}`);
+      const messages = getMessages();
       await this.wa.sendMessage(from, messages.errors.unsupported_type);
       return;
     }
