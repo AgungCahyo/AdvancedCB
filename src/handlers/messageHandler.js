@@ -238,7 +238,7 @@ export class MessageHandler {
     const messages = getMessages();
     const now = new Date().toLocaleString('en-US', { timeZone: 'Asia/Jakarta'});
     const hour = new Date(now).getHours();
-    const isWorkingHour = hour >= 8 && hour < 17; // 08:00 - 17:00
+    const isWorkingHour = hour >= 8 && hour < 17; 
     
     if (!isWorkingHour) {
       const offlineConfig = messages.system_messages?.offline_hours;
