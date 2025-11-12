@@ -39,8 +39,13 @@ async function initializeBot() {
     console.log("\n⏳ Step 3: Setting up routes...");
     const webhookRouter = createWebhookRouter(messageHandler, cache, rateLimiter);
     app.use("/webhook", webhookRouter);
+    
+    // Import and setup broadcast route
+    const { createSendMessageRouter } = await import("./routes/sendMessage.js");
+    const sendMessageRouter = createSendMessageRouter();
+    app.use("/api/send-message", sendMessageRouter);
+    
     console.log("✅ Routes configured");
-
     // Root endpoint
     app.get("/", (req, res) => {
       const status = getMessagesStatus();
