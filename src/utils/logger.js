@@ -1,6 +1,5 @@
-// src/utils/logger.js - Enhanced version with Firebase logging
-import { db, FIREBASE_ENABLED } from './firebase.js';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+// src/utils/logger.js - UPDATED TO USE ADMIN SDK
+import { db, FIREBASE_ENABLED, serverTimestamp } from './firebaseAdmin.js'; // ✅ Use Admin SDK
 
 // Log levels with colors
 const LOG_LEVELS = {
@@ -13,12 +12,12 @@ const LOG_LEVELS = {
 
 const RESET_COLOR = '\x1b[0m';
 
-// Log to Firebase (async, non-blocking)
+// Log to Firebase using Admin SDK (bypasses security rules)
 async function logToFirebase(level, message, data, metadata) {
   if (!FIREBASE_ENABLED || !db) return;
 
   try {
-    await addDoc(collection(db, 'system_logs'), {
+    await db.collection('system_logs').add({
       level,
       message,
       data: data ? JSON.stringify(data) : null,
@@ -26,7 +25,7 @@ async function logToFirebase(level, message, data, metadata) {
       timestamp: serverTimestamp(),
       date: new Date().toISOString().split('T')[0],
       hour: new Date().getHours(),
-      environment: process.env.NODE_ENV || 'development'
+      environment: process.env.NODE_ENV || 'production'
     });
   } catch (error) {
     // Silent fail - don't break app if logging fails
@@ -50,7 +49,7 @@ export function log(level = "INFO", message, data = null, options = {}) {
     console.log(logMessage, data || "");
   }
 
-  // Firebase logging (non-blocking)
+  // Firebase logging (non-blocking, uses Admin SDK)
   if (options.saveToDb !== false) {
     logToFirebase(level, message, data, options.metadata).catch(() => {
       // Silent catch

@@ -1,7 +1,6 @@
-// src/config/index.js - Configuration and Messages Data Management (Refactored)
+// src/config/index.js - UPDATED TO USE ADMIN SDK
 import "dotenv/config";
-import { db, FIREBASE_ENABLED } from '../utils/firebase.js'; // Import from centralized module
-import { doc, onSnapshot } from 'firebase/firestore';
+import { db, FIREBASE_ENABLED } from '../utils/firebaseAdmin.js'; // ✅ Use Admin SDK
 import fs from "fs";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
@@ -18,16 +17,16 @@ let messagesLoaded = false;
 let useFirebase = false;
 
 if (FIREBASE_ENABLED && db) {
-  console.log("🔥 Firebase config detected, initializing messages listener...");
+  console.log("🔥 Firebase Admin SDK detected, initializing messages listener...");
   
   try {
-    // Set up real-time listener
-    const messagesRef = doc(db, 'bot_config', 'messages');
+    // Set up real-time listener using Admin SDK
+    const messagesRef = db.collection('bot_config').doc('messages');
     
-    onSnapshot(
-      messagesRef,
+    // Admin SDK uses onSnapshot differently
+    const unsubscribe = messagesRef.onSnapshot(
       (docSnap) => {
-        if (docSnap.exists()) {
+        if (docSnap.exists) {
           messagesData = docSnap.data();
           messagesLoaded = true;
           useFirebase = true;
@@ -53,7 +52,11 @@ if (FIREBASE_ENABLED && db) {
       }
     );
 
-    console.log('✅ Firebase listener initialized');
+    console.log('✅ Firebase Admin listener initialized');
+    
+    // Cleanup on exit
+    process.on('SIGTERM', () => unsubscribe());
+    process.on('SIGINT', () => unsubscribe());
   } catch (error) {
     console.error('❌ Firebase initialization failed:', error.message);
     console.log('⚠️  Falling back to local messages.json');

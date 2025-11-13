@@ -2,3 +2,4 @@
 node_modules/
 messages.json
 migrate.js
+firebase-service-account.json

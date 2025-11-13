@@ -1,6 +1,6 @@
-// src/handlers/messageHandler.js - UPDATED WITH DYNAMIC WORKING HOURS
+// src/handlers/messageHandler.js - UPDATED TO USE ADMIN SDK
 import { getMessages, CONFIG } from "../config/index.js";
-import { db, FIREBASE_ENABLED } from '../utils/firebase.js';
+import { db, FIREBASE_ENABLED } from '../utils/firebaseAdmin.js'; // ✅ Use Admin SDK
 import { log } from "../utils/logger.js";
 import { 
   logMessage, 
@@ -10,7 +10,6 @@ import {
   trackButtonClick,
   isLoggingEnabled
 } from "../services/firebaseLogger.js";
-import { doc, getDoc } from 'firebase/firestore';
 
 export class MessageHandler {
   constructor(whatsappService, cache, rateLimiter) {
@@ -20,9 +19,9 @@ export class MessageHandler {
     this.loggingEnabled = isLoggingEnabled();
     
     if (this.loggingEnabled) {
-      log("INFO", "📊 Firebase analytics logging enabled");
+      log("INFO", "📊 Firebase Admin analytics logging enabled");
     } else {
-      log("INFO", "📁 Firebase analytics logging disabled (config not found)");
+      log("INFO", "📁 Firebase analytics logging disabled");
     }
   }
 
@@ -85,13 +84,12 @@ export class MessageHandler {
         return userName;
       }
       
-      // Priority 2: Get from Firestore cache
+      // Priority 2: Get from Firestore cache using Admin SDK
       if (db && this.loggingEnabled && FIREBASE_ENABLED) {
-        const userRef = doc(db, 'users', from);
-        const userSnap = await getDoc(userRef);
+        const userDoc = await db.collection('users').doc(from).get();
         
-        if (userSnap.exists() && userSnap.data().name) {
-          userName = userSnap.data().name;
+        if (userDoc.exists && userDoc.data().name) {
+          userName = userDoc.data().name;
           log("INFO", `👤 Name from cache: ${userName}`);
           return userName;
         }
@@ -219,7 +217,7 @@ export class MessageHandler {
       await this.wa.sendMessage(CONFIG.adminNumber, adminNotification);
       await this.wa.sendReaction(from, messageId, reaction);
       
-      // 🔥 LOG CONSULTATION TO FIREBASE
+      // 🔥 LOG CONSULTATION TO FIREBASE (Admin SDK bypasses rules)
       if (this.loggingEnabled) {
         try {
           await logConsultation({
@@ -396,7 +394,7 @@ export class MessageHandler {
     const { message: reply, reaction, keyword } = this.wa.getReply(textBody);
     log("INFO", `🎯 Keyword matched: ${keyword}`);
 
-    // 🔥 TRACK USER WITH NAME
+    // 🔥 TRACK USER WITH NAME (Admin SDK bypasses rules)
     if (this.loggingEnabled) {
       try {
         await trackUser(from, userName, keyword);
@@ -406,7 +404,7 @@ export class MessageHandler {
       }
     }
 
-    // 🔥 LOG MESSAGE TO FIREBASE
+    // 🔥 LOG MESSAGE TO FIREBASE (Admin SDK bypasses rules)
     if (this.loggingEnabled) {
       try {
         await logMessage({

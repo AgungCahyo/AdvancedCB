@@ -1,70 +1,21 @@
-// 📄 src/services/firebaseLogger.js - FIXED VERSION
-
-import { initializeApp } from 'firebase/app';
-import { 
-  getFirestore, 
-  collection, 
-  addDoc, 
-  doc,
-  getDoc,
-  setDoc,
-  updateDoc,
-  increment, 
-  serverTimestamp,
-  query,
-  where,
-  getDocs,
-  limit,
-  orderBy
-} from 'firebase/firestore';
-
-let db = null;
-let isInitialized = false;
-
-const FIREBASE_LOGGING_ENABLED = !!(
-  process.env.FIREBASE_API_KEY && 
-  process.env.FIREBASE_PROJECT_ID
-);
-
-if (FIREBASE_LOGGING_ENABLED) {
-  try {
-    const firebaseConfig = {
-      apiKey: process.env.FIREBASE_API_KEY,
-      authDomain: process.env.FIREBASE_AUTH_DOMAIN,
-      projectId: process.env.FIREBASE_PROJECT_ID,
-      storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
-      messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
-      appId: process.env.FIREBASE_APP_ID
-    };
-
-    const app = initializeApp(firebaseConfig, 'logger');
-    db = getFirestore(app);
-    isInitialized = true;
-    
-    console.log('✅ Firebase Analytics Logger initialized');
-  } catch (error) {
-    console.error('❌ Firebase Logger init failed:', error.message);
-    console.log('⚠️  Chat logging will be disabled');
-  }
-} else {
-  console.log('📊 Firebase logging not configured (optional)');
-}
+// src/services/firebaseLogger.js - UPDATED TO USE ADMIN SDK
+import { db, FIREBASE_ENABLED, serverTimestamp, increment } from '../utils/firebaseAdmin.js';
 
 // ============================================================================
-// LOGGING FUNCTIONS
+// LOGGING FUNCTIONS (Using Admin SDK - bypasses security rules)
 // ============================================================================
 
 /**
- * ✅ FIX 1: Seragamkan field name menjadi 'name' (bukan userName)
+ * Log message to Firestore
  */
 export async function logMessage(messageData) {
-  if (!isInitialized) return null;
+  if (!FIREBASE_ENABLED || !db) return null;
 
   try {
-    const messageRef = await addDoc(collection(db, 'messages'), {
+    const messageRef = await db.collection('messages').add({
       messageId: messageData.messageId,
       from: messageData.from,
-      name: messageData.name || 'Unknown', // ✅ FIXED: Konsisten dengan handler
+      name: messageData.name || 'Unknown',
       type: messageData.type,
       textBody: messageData.textBody,
       keyword: messageData.keyword,
@@ -83,15 +34,15 @@ export async function logMessage(messageData) {
 }
 
 /**
- * ✅ FIX 2: Tambahkan field 'name' di consultation
+ * Log consultation request
  */
 export async function logConsultation(consultationData) {
-  if (!isInitialized) return null;
+  if (!FIREBASE_ENABLED || !db) return null;
 
   try {
-    const consultRef = await addDoc(collection(db, 'consultations'), {
+    const consultRef = await db.collection('consultations').add({
       from: consultationData.from,
-      name: consultationData.name || 'Unknown', // ✅ FIXED: Tambah field name
+      name: consultationData.name || 'Unknown',
       message: consultationData.message,
       timestamp: serverTimestamp(),
       date: new Date().toISOString().split('T')[0],
@@ -110,17 +61,18 @@ export async function logConsultation(consultationData) {
 }
 
 /**
- * ✅ FIX 3: Tambahkan error handling di trackUser
+ * Track user activity
  */
 export async function trackUser(userId, profileName = null, keyword = null) {
-  if (!isInitialized) return null;
+  if (!FIREBASE_ENABLED || !db) return null;
 
   try {
-    const userRef = doc(db, 'users', userId);
-    const userSnap = await getDoc(userRef);
+    const userRef = db.collection('users').doc(userId);
+    const userDoc = await userRef.get();
 
-    if (!userSnap.exists()) {
-      await setDoc(userRef, {
+    if (!userDoc.exists) {
+      // Create new user
+      await userRef.set({
         userId,
         name: profileName || 'Unknown',
         firstSeen: serverTimestamp(),
@@ -133,13 +85,14 @@ export async function trackUser(userId, profileName = null, keyword = null) {
       });
       console.log(`👤 New user tracked: ${profileName} (${userId})`);
     } else {
+      // Update existing user
       const updateData = {
         lastSeen: serverTimestamp(),
         messageCount: increment(1),
       };
 
-      // ✅ IMPROVED: Hanya update name jika berbeda (prevent unnecessary writes)
-      if (profileName && userSnap.data().name !== profileName) {
+      // Only update name if different (prevent unnecessary writes)
+      if (profileName && userDoc.data().name !== profileName) {
         updateData.name = profileName;
       }
 
@@ -147,7 +100,7 @@ export async function trackUser(userId, profileName = null, keyword = null) {
         updateData.lastKeyword = keyword;
       }
 
-      await updateDoc(userRef, updateData);
+      await userRef.update(updateData);
     }
 
     return userId;
@@ -158,25 +111,25 @@ export async function trackUser(userId, profileName = null, keyword = null) {
 }
 
 /**
- * Update keyword statistics
+ * Track keyword usage
  */
 export async function trackKeyword(keyword) {
-  if (!isInitialized) return null;
+  if (!FIREBASE_ENABLED || !db) return null;
 
   try {
     const today = new Date().toISOString().split('T')[0];
-    const statRef = doc(db, 'keyword_stats', `${keyword}_${today}`);
-    const statSnap = await getDoc(statRef);
+    const statRef = db.collection('keyword_stats').doc(`${keyword}_${today}`);
+    const statDoc = await statRef.get();
 
-    if (!statSnap.exists()) {
-      await setDoc(statRef, {
+    if (!statDoc.exists) {
+      await statRef.set({
         keyword,
         date: today,
         count: 1,
         conversions: 0
       });
     } else {
-      await updateDoc(statRef, {
+      await statRef.update({
         count: increment(1)
       });
     }
@@ -189,13 +142,13 @@ export async function trackKeyword(keyword) {
 }
 
 /**
- * Track button click
+ * Track button clicks
  */
 export async function trackButtonClick(buttonData) {
-  if (!isInitialized) return null;
+  if (!FIREBASE_ENABLED || !db) return null;
 
   try {
-    await addDoc(collection(db, 'button_clicks'), {
+    await db.collection('button_clicks').add({
       from: buttonData.from,
       buttonId: buttonData.buttonId,
       buttonTitle: buttonData.buttonTitle,
@@ -213,14 +166,14 @@ export async function trackButtonClick(buttonData) {
 }
 
 /**
- * ✅ FIX 4: Tambahkan error handling di updateStats
+ * Update global stats
  */
 async function updateStats(metric) {
-  if (!isInitialized) return;
+  if (!FIREBASE_ENABLED || !db) return;
 
   try {
-    const statsRef = doc(db, 'stats', 'global');
-    const statsSnap = await getDoc(statsRef);
+    const statsRef = db.collection('stats').doc('global');
+    const statsDoc = await statsRef.get();
 
     const updateData = {
       lastUpdated: serverTimestamp()
@@ -234,15 +187,15 @@ async function updateStats(metric) {
       updateData.consultationRequests = increment(1);
     }
 
-    if (!statsSnap.exists()) {
-      await setDoc(statsRef, {
+    if (!statsDoc.exists) {
+      await statsRef.set({
         totalMessages: metric === 'messages' ? 1 : 0,
         totalUsers: metric === 'users' ? 1 : 0,
         consultationRequests: metric === 'consultations' ? 1 : 0,
         lastUpdated: serverTimestamp()
       });
     } else {
-      await updateDoc(statsRef, updateData);
+      await statsRef.update(updateData);
     }
   } catch (error) {
     console.error('❌ Failed to update stats:', error.message);
@@ -250,13 +203,13 @@ async function updateStats(metric) {
 }
 
 /**
- * Track conversion
+ * Track conversion funnel
  */
 export async function trackConversion(from, fromKeyword, toKeyword) {
-  if (!isInitialized) return null;
+  if (!FIREBASE_ENABLED || !db) return null;
 
   try {
-    await addDoc(collection(db, 'conversions'), {
+    await db.collection('conversions').add({
       from,
       fromKeyword,
       toKeyword,
@@ -266,18 +219,21 @@ export async function trackConversion(from, fromKeyword, toKeyword) {
 
     if (toKeyword === 'konsultasi') {
       const today = new Date().toISOString().split('T')[0];
-      const statRef = doc(db, 'keyword_stats', `${fromKeyword}_${today}`);
+      const statRef = db.collection('keyword_stats').doc(`${fromKeyword}_${today}`);
+      const statDoc = await statRef.get();
       
-      await updateDoc(statRef, {
-        conversions: increment(1)
-      }).catch(() => {
-        setDoc(statRef, {
+      if (statDoc.exists) {
+        await statRef.update({
+          conversions: increment(1)
+        });
+      } else {
+        await statRef.set({
           keyword: fromKeyword,
           date: today,
           count: 0,
           conversions: 1
         });
-      });
+      }
     }
 
     return true;
@@ -291,17 +247,15 @@ export async function trackConversion(from, fromKeyword, toKeyword) {
  * Get user journey
  */
 export async function getUserJourney(userId, limitCount = 20) {
-  if (!isInitialized) return [];
+  if (!FIREBASE_ENABLED || !db) return [];
 
   try {
-    const q = query(
-      collection(db, 'messages'),
-      where('from', '==', userId),
-      orderBy('timestamp', 'desc'),
-      limit(limitCount)
-    );
+    const snapshot = await db.collection('messages')
+      .where('from', '==', userId)
+      .orderBy('timestamp', 'desc')
+      .limit(limitCount)
+      .get();
 
-    const snapshot = await getDocs(q);
     return snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
@@ -312,70 +266,14 @@ export async function getUserJourney(userId, limitCount = 20) {
   }
 }
 
-export function isLoggingEnabled() {
-  return isInitialized;
-}
-
-export function getLoggingStatus() {
-  return {
-    enabled: isInitialized,
-    timestamp: new Date().toISOString()
-  };
-}
-
-// ============================================================================
-// BATCH LOGGING
-// ============================================================================
-
-let batchQueue = [];
-const BATCH_SIZE = 10;
-const BATCH_INTERVAL = 5000;
-
-export function queueLog(collectionName, data) {
-  if (!isInitialized) return;
-
-  batchQueue.push({ collectionName, data });
-
-  if (batchQueue.length >= BATCH_SIZE) {
-    flushBatchQueue();
-  }
-}
-
-async function flushBatchQueue() {
-  if (batchQueue.length === 0) return;
-
-  const batch = [...batchQueue];
-  batchQueue = [];
-
-  try {
-    const promises = batch.map(item => 
-      addDoc(collection(db, item.collectionName), {
-        ...item.data,
-        timestamp: serverTimestamp()
-      })
-    );
-
-    await Promise.all(promises);
-    console.log(`📦 Batch logged: ${batch.length} items`);
-  } catch (error) {
-    console.error('❌ Batch logging failed:', error.message);
-    batchQueue.push(...batch);
-  }
-}
-
-if (isInitialized) {
-  setInterval(flushBatchQueue, BATCH_INTERVAL);
-}
-
-// ============================================================================
-// ERROR LOGGING
-// ============================================================================
-
+/**
+ * Log system errors
+ */
 export async function logError(errorData) {
-  if (!isInitialized) return null;
+  if (!FIREBASE_ENABLED || !db) return null;
 
   try {
-    await addDoc(collection(db, 'errors'), {
+    await db.collection('errors').add({
       type: errorData.type || 'unknown',
       message: errorData.message,
       stack: errorData.stack || null,
@@ -389,4 +287,66 @@ export async function logError(errorData) {
     console.error('❌ Failed to log error:', error.message);
     return false;
   }
+}
+
+/**
+ * Check if logging is enabled
+ */
+export function isLoggingEnabled() {
+  return FIREBASE_ENABLED;
+}
+
+/**
+ * Get logging status
+ */
+export function getLoggingStatus() {
+  return {
+    enabled: FIREBASE_ENABLED,
+    timestamp: new Date().toISOString()
+  };
+}
+
+// ============================================================================
+// BATCH LOGGING (Optional optimization)
+// ============================================================================
+
+let batchQueue = [];
+const BATCH_SIZE = 10;
+const BATCH_INTERVAL = 5000;
+
+export function queueLog(collectionName, data) {
+  if (!FIREBASE_ENABLED || !db) return;
+
+  batchQueue.push({ collectionName, data });
+
+  if (batchQueue.length >= BATCH_SIZE) {
+    flushBatchQueue();
+  }
+}
+
+async function flushBatchQueue() {
+  if (batchQueue.length === 0 || !db) return;
+
+  const batch = [...batchQueue];
+  batchQueue = [];
+
+  try {
+    const promises = batch.map(item => 
+      db.collection(item.collectionName).add({
+        ...item.data,
+        timestamp: serverTimestamp()
+      })
+    );
+
+    await Promise.all(promises);
+    console.log(`📦 Batch logged: ${batch.length} items`);
+  } catch (error) {
+    console.error('❌ Batch logging failed:', error.message);
+    batchQueue.push(...batch);
+  }
+}
+
+// Start batch processing if enabled
+if (FIREBASE_ENABLED) {
+  setInterval(flushBatchQueue, BATCH_INTERVAL);
 }
