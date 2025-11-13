@@ -41,7 +41,6 @@ if (FIREBASE_ADMIN_ENABLED) {
       db = admin.firestore();
       isInitialized = true;
       console.log('✅ Firebase Admin initialized with default credentials');
-      return;
     }
 
     // Initialize with service account
